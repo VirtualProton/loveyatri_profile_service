@@ -79,9 +79,6 @@ export async function buildApp(): Promise<Fastify.FastifyInstance<Fastify.RawSer
   await app.register(routes, {
     prefix: "/v1/profile",
   });
-
-  // 🔐 Auth routes
-  //   app.register(authRoutes);
-
+  
   return app;
 }
