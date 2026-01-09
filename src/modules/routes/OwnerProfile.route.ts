@@ -9,7 +9,7 @@ const ownerProfileRoute: FastifyPluginAsync = async (fastify) => {
     {
       preHandler: authenticateToken,
       schema: {
-        tags: ["Owner Auth"],
+        tags: ["Profile Owner"],
         summary: "Owner Profile Creation",
         description: "🔐 Authorization required. Pass JWT as: Bearer <token>",
         body: OwnerProfileSchema,
