@@ -1,0 +1,12 @@
+{
+  "userId": "uuid",
+  "role": "OWNER",
+  "ownerId": "owner_uuid",
+  "permissions": [
+    "PROPERTY_CREATE",
+    "BOOKING_VIEW",
+    "AVAILABILITY_BLOCK"
+  ],
+  "iat": 1710000000,
+  "exp": 1710003600
+}

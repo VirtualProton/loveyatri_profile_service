@@ -1,0 +1,108 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+}
+
+enum Permission {
+  PROPERTY_CREATE
+  PROPERTY_EDIT
+
+  BOOKING_VIEW
+  BOOKING_CREATE
+  BOOKING_CANCEL
+
+  AVAILABILITY_BLOCK
+
+  PAYOUT_VIEW
+}
+
+enum preferredLanguage {
+  EN
+  HI
+  TE
+}
+
+// ==========================
+// Admins (SUPER_ADMIN + OWNER)
+// ==========================
+model Admin {
+  id                String        @id @default(uuid())
+  role              AdminRole     @default(ADMIN)
+  fullName          String
+  email             String        @unique
+  passwordHash      String
+  permissions       Json?
+  isActive          Boolean       @default(false)
+  isProfileComplete Boolean       @default(false)
+  staff             Staff[]       @relation("AdminStaff")
+  profile           AdminProfile? @relation("AdminProfile")
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+model AdminProfile {
+  id                String            @id @default(uuid())
+  adminId           String            @unique
+  photoUrl          String
+  phone             String            @unique
+  countryCode       String?           @default("+91")
+  preferredLanguage preferredLanguage @default(EN)
+  shortBio          String?           @db.Text
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  admin             Admin             @relation("AdminProfile", fields: [adminId], references: [id])
+}
+
+model Staff {
+  id           String   @id @default(uuid())
+  adminId      String
+  userName     String
+  passwordHash String
+  phoneNumber  String?  @unique
+  permissions  Json // 👈 FIX HERE
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  admin        Admin    @relation("AdminStaff", fields: [adminId], references: [id])
+}
+
+// ==========================
+// Token Blacklist
+// ==========================
+model TokenBlacklist {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique @db.VarChar(64)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+// ==========================
+// Customers
+// ==========================
+model Customer {
+  id           String   @id @default(uuid())
+  email        String?  @unique
+  phoneNumber  String?  @unique
+  passwordHash String?
+  googleId     String?  @unique
+  isActive     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
