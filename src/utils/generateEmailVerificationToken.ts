@@ -1,17 +1,13 @@
-import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
+import jwt from "jsonwebtoken";
+import { EmailChangeTokenPayload } from "../types.js";
 
+export function buildEmailChangeLink(token: string) {
+    return `${env.APP_URL}/verify-email-change?token=${encodeURIComponent(token)}`;
+  }
 
-const EMAIL_VERIFY_JWT_SECRET = env.JWT_SECRET;
-const APP_URL = env.APP_URL; 
-
-export function signEmailVerifyToken(payload: { ownerId: string; email: string }) {
-  if (!EMAIL_VERIFY_JWT_SECRET) throw new Error("Missing EMAIL_VERIFY_JWT_SECRET");
-  return jwt.sign(payload, EMAIL_VERIFY_JWT_SECRET, { expiresIn: "30m" });
-}
-
-export function buildVerifyLink(token: string) {
-  if (!APP_URL) throw new Error("Missing APP_URL");
-  // You can point this to FE route or API route, your choice.
-  return `${APP_URL}/verify-email?token=${encodeURIComponent(token)}`;
-}
+export function signEmailChangeToken(payload: EmailChangeTokenPayload) {
+    return jwt.sign(payload, env.JWT_SECRET, {
+      expiresIn: "15m",
+    });
+  }
