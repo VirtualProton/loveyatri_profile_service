@@ -20,7 +20,7 @@ const ownerProfileRoute: FastifyPluginAsync = async (fastify) => {
     OwnerProfileController
   );
 
-  fastify.post(
+  fastify.put(
     "/update",
     {
       preHandler: authenticateToken,
