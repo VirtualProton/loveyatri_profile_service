@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from "fastify";
 import { authenticateToken } from "../../middleware/authMiddleware.js";
-import { EmailVerificationSchema, OwnerProfileSchema, OwnerProfileUpdateSchema, ResponseSchema } from "../schema/OwnerProfile.schema.js";
-import { OwnerProfileController, UpdateOwnerProfileController, verifyEmailChangeController } from "../controllers/OwnerProfile.controller.js";
+import { EmailVerificationSchema, getOwnerProfileSchema, OwnerProfileSchema, OwnerProfileUpdateSchema, ResponseSchema } from "../schema/OwnerProfile.schema.js";
+import { getOwnerProfileController, OwnerProfileController, UpdateOwnerProfileController, verifyEmailChangeController } from "../controllers/OwnerProfile.controller.js";
 
 const ownerProfileRoute: FastifyPluginAsync = async (fastify) => {
   fastify.post(
@@ -51,7 +51,21 @@ const ownerProfileRoute: FastifyPluginAsync = async (fastify) => {
     verifyEmailChangeController
   );
 
-
+  fastify.get(
+    "/get-profile",
+    {
+      preHandler: authenticateToken,
+      schema: {
+        tags: ["Profile Owner"],
+        summary: "Owner Profile Retrieval",
+        description: "🔐 Authorization required. Pass JWT as: Bearer <token>",
+        querystring: getOwnerProfileSchema,
+        security: [{ bearerAuth: [] }],
+        response: ResponseSchema.GetOwnerProfileResponseSchema,
+      }
+    },
+    getOwnerProfileController
+  );
 }
 
 export default ownerProfileRoute;

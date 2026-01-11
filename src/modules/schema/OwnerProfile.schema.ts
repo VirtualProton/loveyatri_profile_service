@@ -157,6 +157,26 @@ export const EmailVerificationSchema = {
     }
 };
 
+export const getOwnerProfileSchema = {
+    type: "object",
+    required: ["id"],
+    additionalProperties: false,
+    properties: {
+        id: {
+            type: "string",
+            example: "a1b2c3d4-uuid",
+            errorMessage: {
+                format: "id must be a valid string"
+            }
+        }
+    },
+    errorMessage: {
+        required: {
+            id: "id is required"
+        }
+    }
+};
+
 
 
 
@@ -358,5 +378,125 @@ export const ResponseSchema = {
                 },
             },
         },
+    },
+    GetOwnerProfileResponseSchema :{
+        200: {
+            type: "object",
+            required: ["success", "message", "data"],
+            properties: {
+                success: {
+                    type: "boolean",
+                    example: true,
+                },
+                message: {
+                    type: "string",
+                    example: "Owner profile fetched successfully",
+                },
+                data: {
+                    type: "object",
+                    required: ["id", "email", "fullName", "profile"],
+                    properties: {
+                        id: {
+                            type: "string",
+                            example: "admin_12345",
+                        },
+                        email: {
+                            type: "string",
+                            example: "owner@example.com",
+                        },
+                        fullName: {
+                            type: "string",
+                            example: "John Doe",
+                        },
+                        profile: {
+                            type: "object",
+                            nullable: true,
+                            required: [
+                                "id",
+                                "createdAt",
+                                "updatedAt",
+                                "photoUrl",
+                                "phone",
+                                "countryCode",
+                                "preferredLanguage",
+                                "shortBio",
+                                "adminId",
+                            ],
+                            properties: {
+                                id: {
+                                    type: "string",
+                                    example: "profile_123",
+                                },
+                                createdAt: {
+                                    type: "string",
+                                    format: "date-time",
+                                    example: "2025-01-01T10:00:00.000Z",
+                                },
+                                updatedAt: {
+                                    type: "string",
+                                    format: "date-time",
+                                    example: "2025-01-10T12:00:00.000Z",
+                                },
+                                photoUrl: {
+                                    type: "string",
+                                    example: "https://example.com/photo.jpg",
+                                },
+                                phone: {
+                                    type: "string",
+                                    example: "+1234567890",
+                                },
+                                countryCode: {
+                                    type: ["string", "null"],
+                                    example: "US",
+                                },
+                                preferredLanguage: {
+                                    type: "string",
+                                    example: "en",
+                                },
+                                shortBio: {
+                                    type: ["string", "null"],
+                                    example: "Experienced platform owner",
+                                },
+                                adminId: {
+                                    type: "string",
+                                    example: "admin_12345",
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        404: {
+            type: "object",
+            required: ["success", "message"],
+            properties: {
+                success: {
+                    type: "boolean",
+                    example: false,
+                },
+                message: {
+                    type: "string",
+                    example: "Owner profile not found",
+                },
+            },
+        },
+
+        500: {
+            type: "object",
+            required: ["success", "message"],
+            properties: {
+                success: {
+                    type: "boolean",
+                    example: false,
+                },
+                message: {
+                    type: "string",
+                    example: "Fetching Owner profile failed",
+                },
+            },
+        },
     }
+
 };

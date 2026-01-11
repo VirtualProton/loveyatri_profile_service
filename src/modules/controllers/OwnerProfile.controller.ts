@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { OwnerProfileRequest, OwnerProfileUpdateRequest } from "../../types.js";
-import { OwnerProfileService, UpdateOwnerProfileService, verifyEmailChangeTokenService } from "../services/OwnerProfileService.js";
+import { getOwnerProfileService, OwnerProfileService, UpdateOwnerProfileService, verifyEmailChangeTokenService } from "../services/OwnerProfileService.js";
 import { AppError } from "../../utils/appError.js";
 
 export const OwnerProfileController = async (
@@ -74,3 +74,21 @@ export const verifyEmailChangeController = async (
 }
 
 
+export const getOwnerProfileController = async (
+    req: FastifyRequest,
+    reply: FastifyReply) => {
+    const {id}  = req.query as { id: string };
+    try {
+        const profile = await getOwnerProfileService(id);
+        return reply.code(200).send({
+            success: true,
+            message: "Owner profile fetched successfully",
+            data: profile
+        });
+    }catch (err: any) {
+        return reply.status(err.statusCode || 500).send({
+            success: false,
+            message: err.message,
+        });
+    }
+}

@@ -1,9 +1,11 @@
 import { env } from "../../config/env.js";
-import { OwnerProfileUpdateRequest } from "../../types.js";
+// import { OwnerProfileUpdateRequest } from "../../types.js";
 import { AppError } from "../../utils/appError.js";
 import { signEmailChangeToken } from "../../utils/generateEmailVerificationToken.js";
 import { prisma } from "../../utils/prisma.js";
-import jwt, { JsonWebTokenError, TokenExpiredError } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
+
+
 
 export const OwnerProfileService = async (data: {
     adminId: string;
@@ -153,15 +155,41 @@ export const verifyEmailChangeTokenService = async (token: string) => {
     } catch (err: any) {
         if (err instanceof AppError) throw err;
 
-        if (err instanceof TokenExpiredError) {
+        if (err instanceof jwt.TokenExpiredError) {
             throw new AppError(401, "Token expired");
         }
 
-        if (err instanceof JsonWebTokenError) {
+        if (err instanceof jwt.JsonWebTokenError) {
             throw new AppError(401, "Invalid token");
         }
 
         throw new AppError(500, "Email change verification failed");
+    }
+}
+
+
+export const getOwnerProfileService = async (adminId: string) => {
+    try {
+        const profile = await prisma.admin.findUnique({
+            where: { id: adminId },
+            select: {
+                id: true,
+                fullName: true,
+                email: true,
+                profile: true
+            },
+        });
+
+        if (!profile) {
+            throw new AppError(404, "Owner profile not found");
+        }
+        return profile;
+    }catch (err: any) {
+        if (err instanceof AppError) throw err;
+        throw new AppError(
+            500,
+            "Fetching Owner profile failed" + err.message
+        );
     }
 }
 
