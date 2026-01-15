@@ -1,21 +1,5 @@
 import type { FastifyRequest } from "fastify";
 
-export type OwnerRegistrationRequest = FastifyRequest<{
-    Body: {
-        fullName: string;
-        email: string;
-        password: string;
-        re_password: string;
-    };
-}>;
-
-export type OwnerSignInRequest = FastifyRequest<{
-    Body: {
-        email: string;
-        password: string;
-    };
-}>;
-
 export type OwnerProfileRequest =FastifyRequest<{
     Body: {
         adminId: string;
@@ -26,11 +10,19 @@ export type OwnerProfileRequest =FastifyRequest<{
     };
 }>
 
-export type OwnerChangePasswordRequest = FastifyRequest<{
+export type OwnerProfileUpdateRequest = FastifyRequest<{
     Body: {
-        oldPassword: string;
-        newPassword: string;
-        re_newPassword: string;
+        adminId: string;
+
+        // Admin
+        fullName?: string;
+        email?: string;
+
+        // AdminProfile
+        photoUrl?: string;
+        phone?: string;
+        preferredLanguage?: string;
+        shortBio?: string | null;
     };
 }>;
 
@@ -59,3 +51,8 @@ export type CustomerProfileGetRequest = FastifyRequest<{
         customerId: string;
     };
 }>;
+export type EmailChangeTokenPayload = {
+    adminId: string;
+    newEmail: string;
+    oldEmail: string;
+}
