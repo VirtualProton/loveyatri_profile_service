@@ -33,3 +33,29 @@ export type OwnerChangePasswordRequest = FastifyRequest<{
         re_newPassword: string;
     };
 }>;
+
+export type CustomerProfileRequest = FastifyRequest<{
+    Body: {
+        customerId: string;
+        photoUrl: string;
+        phone: string;
+        address?: string | null;
+    };
+}>;
+
+export type CustomerProfileUpdateRequest = FastifyRequest<{
+    Body: {
+        customerId: string;
+        fullName?: string;
+        photoUrl?: string;
+        phone?: string;
+        address?: string | null;
+        email?: string;
+    };
+}>;
+
+export type CustomerProfileGetRequest = FastifyRequest<{
+    Body: {
+        customerId: string;
+    };
+}>;

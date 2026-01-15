@@ -43,7 +43,7 @@ export async function buildApp(): Promise<Fastify.FastifyInstance<Fastify.RawSer
       },
       servers: [
         {
-          url: "http://localhost:3002",
+          url: "http://localhost:3003",
           description: "Local server",
         },
       ],
