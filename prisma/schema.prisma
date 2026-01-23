@@ -63,7 +63,6 @@ model Customer {
   id                String           @id @default(uuid())
   fullName          String
   email             String?          @unique
-  pendingEmail      String?          @unique
   phoneNumber       String?          @unique
   passwordHash      String?
   googleId          String?          @unique
@@ -71,20 +70,22 @@ model Customer {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   isProfileComplete Boolean          @default(false)
+  pendingEmail      String?          @unique
   profile           CustomerProfile? @relation("CustomerProfile")
+  PropertyReview    PropertyReview[]
 }
 
 model CustomerProfile {
   id          String   @id @default(uuid())
   customerId  String   @unique
-  fullName    String
-  email       String?  @unique
   photoUrl    String
   phone       String   @unique
   countryCode String?  @default("+91")
   address     String?  @db.Text
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  email       String?  @unique
+  fullName    String
   customer    Customer @relation("CustomerProfile", fields: [customerId], references: [id])
 }
 
@@ -144,10 +145,15 @@ model Property {
   rejectedAt      DateTime?
   rejectedBy      String?
   reviewNote      String?           @db.Text
+  archivedAt      DateTime?
+  archivedBy      String?
+  avgRating       Float             @default(0)
+  ratingCount     Int               @default(0)
   CustomAmenity   CustomAmenity[]
   Policy          Policy[]
   PropertyAmenity PropertyAmenity[]
   PropertyImage   PropertyImage[]
+  PropertyReview  PropertyReview[]
   Unit            Unit[]
 
   @@index([adminId])
@@ -207,6 +213,24 @@ model UnitImage {
   @@index([unitId])
 }
 
+model PropertyReview {
+  id         String   @id
+  propertyId String
+  customerId String
+  rating     Int
+  title      String?
+  comment    String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+  Customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  Property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, customerId])
+  @@index([customerId])
+  @@index([propertyId])
+  @@index([rating])
+}
+
 enum AdminRole {
   SUPER_ADMIN
   ADMIN
@@ -238,14 +262,15 @@ enum Unit_type {
   ROOM_TYPE
 }
 
+enum Property_country {
+  India
+}
+
 enum Property_status {
   DRAFT
   PENDING_APPROVAL
   PUBLISHED
   SUSPENDED
   REJECTED
-}
-
-enum Property_country {
-  India
+  ARCHIVED
 }
