@@ -80,6 +80,7 @@ model Customer {
   PropertyReview       PropertyReview[]
 }
 
+
 model CustomerProfile {
   id          String   @id @default(uuid())
   customerId  String   @unique
