@@ -45,14 +45,14 @@ const ownerProfileRoute: FastifyPluginAsync = async (fastify) => {
         summary: "Owner Email Change Verification",
         description: "🔐 Authorization required. Pass JWT as: Bearer <token>",
         querystring: EmailVerificationSchema,
-        response: ResponseSchema.UpdateOwnerProfileResponseSchema,
+        response: ResponseSchema.VerifyOwnerEmailChangeResponseSchema,
       }
     },
     verifyEmailChangeController
   );
 
   fastify.get(
-    "/get-profile",
+    "/profile",
     {
       preHandler: authenticateToken,
       schema: {

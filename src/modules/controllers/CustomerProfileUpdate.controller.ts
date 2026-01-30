@@ -1,48 +1,123 @@
-// import type { FastifyReply, FastifyRequest } from "fastify";
-// import { CustomerProfileUpdateRequest } from "../../types.js";
-// import { CustomerProfileUpdateService } from "../services/CustomerProfileUpdateService.js";
+import type { FastifyReply, FastifyRequest } from "fastify";
+import { CustomerProfileUpdateRequest } from "../../types.js";
+import { CustomerProfileUpdateService, VerifyCustomerEmailChangeService } from "../services/CustomerProfileUpdateService.js";
+import { AppError } from "../../utils/appError.js";
 
-// export const CustomerProfileUpdateController = async (
-//     req: FastifyRequest,
-//     reply: FastifyReply
-// ) => {
-//     const { customerId, fullName, photoUrl, phone, address, email } = req.body as CustomerProfileUpdateRequest["body"];
-//     try {
-//         const serviceParams: {
-//             customerId: string;
-//             fullName?: string;
-//             photoUrl?: string;
-//             phone?: string;
-//             address?: string | null;
-//             email?: string;
-//         } = { customerId };
+export const CustomerProfileUpdateController = async (
+    req: FastifyRequest,
+    reply: FastifyReply
+) => {
+    try {
+        const body = req.body as CustomerProfileUpdateRequest["body"];
+        const {
+            customer,
+            emailChangeLink,
+            phoneOtpSent,
+        } = await CustomerProfileUpdateService(body);
 
-//         if (typeof fullName !== "undefined") serviceParams.fullName = fullName;
-//         if (typeof photoUrl !== "undefined") serviceParams.photoUrl = photoUrl;
-//         if (typeof phone !== "undefined") serviceParams.phone = phone;
-//         if (typeof address !== "undefined") serviceParams.address = address;
-//         if (typeof email !== "undefined") serviceParams.email = email;
+        if (emailChangeLink) {
+            return reply.status(200).send({
+                success: true,
+                message: "Email change verification link sent to new email address",
+                emailChangeLink,
+                customer,
+            });
+        }
 
-//         const result = await CustomerProfileUpdateService(serviceParams);
+        if (phoneOtpSent) {
+            return reply.status(200).send({
+                success: true,
+                message: "OTP sent to new phone number",
+                customer,
+            });
+        }
 
-//         const response: any = {
-//             success: true,
-//             message: "Customer profile updated successfully",
-//             profile: result.customer,
-//         };
+        return reply.status(200).send({
+            success: true,
+            message: "Customer profile updated successfully",
+            customer,
+        });
+    } catch (err: any) {
+        // Default values
+        let statusCode = 500;
+        let message =
+            "An unexpected error occurred while updating the customer profile";
 
-//         // Include email verification info if email was updated
-//         if (result.emailVerificationToken && result.emailVerificationLink) {
-//             response.message = "Profile updated successfully. Please verify your new email address.";
-//             response.emailVerificationRequired = true;
-//             response.emailVerificationLink = result.emailVerificationLink;
-//         }
+        // Our own AppError (business / validation errors)
+        if (err instanceof AppError) {
+            statusCode = err.statusCode || 500;
+            message = err.message || message;
+        }
+        // Fastify / schema validation style error (if ever bubbled here)
+        else if (err?.validation) {
+            statusCode = 400;
+            message = "Request validation failed";
+            return reply.status(statusCode).send({
+                success: false,
+                message,
+                errors: err.validation,
+            });
+        }
+        // Prisma or other known libs can be handled here if you want
+        // else if (err?.code === "P2002") { ... }
 
-//         return reply.code(200).send(response);
-//     } catch (err: any) {
-//         return reply.status(err.statusCode || 500).send({
-//             success: false,
-//             message: err.message,
-//         });
-//     }
-// }
+        // Log unexpected errors for debugging (server-side)
+        console.error("CustomerProfileUpdateController error:", err);
+
+        return reply.status(statusCode).send({
+            success: false,
+            message,
+        });
+    }
+};
+
+
+export const VerifyCustomerEmailChangeController = async (
+  req: FastifyRequest,
+  reply: FastifyReply
+) => {
+  try {
+    const { token } = req.query as { token?: string };
+
+    if (!token) {
+      return reply.status(400).send({
+        success: false,
+        message: "Email change token is required",
+      });
+    }
+
+    const { customer, emailChanged } = await VerifyCustomerEmailChangeService(token);
+
+    return reply.status(200).send({
+      success: true,
+      message: emailChanged
+        ? "Email address updated successfully"
+        : "Email verification complete",
+      customer,
+    });
+  } catch (err: any) {
+    let statusCode = 500;
+    let message =
+      "An unexpected error occurred while verifying the email change link";
+
+    if (err instanceof AppError) {
+      statusCode = err.statusCode || 500;
+      message = err.message || message;
+    } else if (err?.validation) {
+      statusCode = 400;
+      message = "Request validation failed";
+      return reply.status(statusCode).send({
+        success: false,
+        message,
+        errors: err.validation,
+      });
+    }
+
+    console.error("VerifyCustomerEmailChangeController error:", err);
+
+    return reply.status(statusCode).send({
+      success: false,
+      message,
+    });
+  }
+};

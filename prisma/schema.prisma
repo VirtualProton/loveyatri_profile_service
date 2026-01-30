@@ -8,18 +8,21 @@ datasource db {
 }
 
 model Admin {
-  id                String        @id @default(uuid())
-  role              AdminRole     @default(ADMIN)
-  fullName          String
-  email             String        @unique
-  passwordHash      String
-  permissions       Json?
-  isActive          Boolean       @default(false)
-  isProfileComplete Boolean       @default(false)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  profile           AdminProfile? @relation("AdminProfile")
-  staff             Staff[]       @relation("AdminStaff")
+  id                   String        @id @default(uuid())
+  role                 AdminRole     @default(ADMIN)
+  fullName             String
+  email                String        @unique
+  passwordHash         String
+  permissions          Json?
+  isActive             Boolean       @default(false)
+  isProfileComplete    Boolean       @default(false)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  resetPasswordVersion Int           @default(0)
+  emailVerifyVersion   Int           @default(0)
+  profile              AdminProfile? @relation("AdminProfile")
+  Property             Property[]
+  staff                Staff[]       @relation("AdminStaff")
 }
 
 model AdminProfile {
@@ -60,19 +63,21 @@ model TokenBlacklist {
 }
 
 model Customer {
-  id                String           @id @default(uuid())
-  fullName          String
-  email             String?          @unique
-  phoneNumber       String?          @unique
-  passwordHash      String?
-  googleId          String?          @unique
-  isActive          Boolean          @default(false)
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  isProfileComplete Boolean          @default(false)
-  pendingEmail      String?          @unique
-  profile           CustomerProfile? @relation("CustomerProfile")
-  PropertyReview    PropertyReview[]
+  id                   String           @id @default(uuid())
+  fullName             String
+  email                String           @unique
+  passwordHash         String?
+  googleId             String?          @unique
+  isActive             Boolean          @default(false)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  isProfileComplete    Boolean          @default(false)
+  pendingEmail         String?          @unique
+  resetPasswordVersion Int              @default(0)
+  role                 String           @default("CUSTOMER")
+  emailVerifyVersion   Int              @default(0)
+  profile              CustomerProfile? @relation("CustomerProfile")
+  PropertyReview       PropertyReview[]
 }
 
 model CustomerProfile {
@@ -88,6 +93,7 @@ model CustomerProfile {
   fullName    String
   customer    Customer @relation("CustomerProfile", fields: [customerId], references: [id])
 }
+
 
 model Amenity {
   id              String            @id
@@ -151,6 +157,7 @@ model Property {
   ratingCount     Int               @default(0)
   CustomAmenity   CustomAmenity[]
   Policy          Policy[]
+  Admin           Admin             @relation(fields: [adminId], references: [id], onDelete: Cascade)
   PropertyAmenity PropertyAmenity[]
   PropertyImage   PropertyImage[]
   PropertyReview  PropertyReview[]

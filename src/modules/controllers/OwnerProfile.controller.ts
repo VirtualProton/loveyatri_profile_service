@@ -31,25 +31,62 @@ export const UpdateOwnerProfileController = async (
 ) => {
     const data = req.body as OwnerProfileUpdateRequest["body"];
     try {
-        const emailChangeLink = await UpdateOwnerProfileService(data);
+        const { owner, emailChangeLink, phoneOtpSent } =
+            await UpdateOwnerProfileService(data);
+
         if (emailChangeLink) {
-            return reply.code(200).send({
+            return reply.status(200).send({
                 success: true,
                 message: "Email change verification link sent to new email address",
-                emailChangeLink
-            });
-        } else {
-            return reply.code(200).send({
-                success: true,
-                message: "Owner profile updated successfully",
-                emailChangeLink
+                emailVerificationRequired: true,
+                emailChangeLink,
+                phoneOtpSent: !!phoneOtpSent,
+                owner,
             });
         }
 
+        if (phoneOtpSent) {
+            return reply.status(200).send({
+                success: true,
+                message: "OTP sent to new phone number",
+                emailVerificationRequired: false,
+                emailChangeLink: null,
+                phoneOtpSent: true,
+                owner,
+            });
+        }
+
+        return reply.status(200).send({
+            success: true,
+            message: "Owner profile updated successfully",
+            emailVerificationRequired: false,
+            emailChangeLink: null,
+            phoneOtpSent: false,
+            owner,
+        });
     } catch (err: any) {
-        return reply.status(err.statusCode || 500).send({
+        let statusCode = 500;
+        let message =
+            "An unexpected error occurred while updating the owner profile";
+
+        if (err instanceof AppError) {
+            statusCode = err.statusCode || 500;
+            message = err.message || message;
+        } else if (err?.validation) {
+            statusCode = 400;
+            message = "Request validation failed";
+            return reply.status(statusCode).send({
+                success: false,
+                message,
+                errors: err.validation,
+            });
+        }
+
+        console.error("UpdateOwnerProfileController error:", err);
+
+        return reply.status(statusCode).send({
             success: false,
-            message: err.message,
+            message,
         });
     }
 }
@@ -58,26 +95,61 @@ export const verifyEmailChangeController = async (
     req: FastifyRequest,
     reply: FastifyReply
 ) => {
-    const { token } = req.query as { token: string };
-    try{
-        await verifyEmailChangeTokenService(token);
-        return reply.code(200).send({
+    try {
+        const { token } = req.query as { token?: string };
+
+        if (!token) {
+            return reply.status(400).send({
+                success: false,
+                message: "Token is required",
+            });
+        }
+
+        const { owner, emailChanged } = await verifyEmailChangeTokenService(token);
+
+        return reply.status(200).send({
             success: true,
-            message: "Email change verified successfully",
+            message: emailChanged
+                ? "Email change verified successfully"
+                : "Email verification completed",
+            emailVerificationRequired: false,
+            emailChangeLink: null,
+            phoneOtpSent: false,
+            owner,
         });
-    }catch(err: any){
-        return reply.status(err.statusCode || 500).send({
+    } catch (err: any) {
+        let statusCode = 500;
+        let message =
+            "An unexpected error occurred while verifying the email change link";
+
+        if (err instanceof AppError) {
+            statusCode = err.statusCode || 500;
+            message = err.message || message;
+        } else if (err?.validation) {
+            statusCode = 400;
+            message = "Request validation failed";
+            return reply.status(statusCode).send({
+                success: false,
+                message,
+                errors: err.validation,
+            });
+        }
+
+        console.error("verifyEmailChangeController error:", err);
+
+        return reply.status(statusCode).send({
             success: false,
-            message: err.message,
+            message,
         });
     }
-}
+};
+
 
 
 export const getOwnerProfileController = async (
     req: FastifyRequest,
     reply: FastifyReply) => {
-    const {id}  = req.query as { id: string };
+    const { id } = req.query as { id: string };
     try {
         const profile = await getOwnerProfileService(id);
         return reply.code(200).send({
@@ -85,7 +157,7 @@ export const getOwnerProfileController = async (
             message: "Owner profile fetched successfully",
             data: profile
         });
-    }catch (err: any) {
+    } catch (err: any) {
         return reply.status(err.statusCode || 500).send({
             success: false,
             message: err.message,

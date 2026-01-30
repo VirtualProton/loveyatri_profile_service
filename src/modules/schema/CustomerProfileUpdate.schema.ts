@@ -61,48 +61,79 @@ export const ResponseSchema = {
     CustomerProfileUpdateResponseSchema: {
         200: {
             type: "object",
-            required: ["success", "message", "profile"],
+            required: ["success", "message", "customer"],
             properties: {
                 success: { type: "boolean", example: true },
                 message: {
                     type: "string",
                     example: "Customer profile updated successfully",
                 },
+
+                // true if an email-change flow was triggered
                 emailVerificationRequired: {
                     type: "boolean",
                     example: false,
-                    description: "True if email was updated and verification is required",
+                    description:
+                        "True if email was updated and verification via link is required",
                 },
+
+                // the actual link we return when email changes
                 emailVerificationLink: {
                     type: ["string", "null"],
                     example: null,
-                    description: "Email verification link (only present if email was updated)",
+                    description:
+                        "Email verification link (present only if emailVerificationRequired is true)",
                 },
-                profile: {
+
+                // true if phone was changed and an OTP has been (or should be) sent
+                phoneOtpSent: {
+                    type: "boolean",
+                    example: false,
+                    description:
+                        "True if phone number was updated and an OTP was sent to the new phone number",
+                },
+
+                customer: {
                     type: "object",
-                    required: [
-                        "id",
-                        "fullName",
-                        "customer",
-                    ],
+                    required: ["id", "fullName", "isActive", "isProfileComplete"],
                     properties: {
                         id: { type: "string", example: "customer-uuid" },
                         fullName: { type: "string", example: "John Doe" },
-                        email: { type: ["string", "null"], example: "john@example.com" },
-                        pendingEmail: { type: ["string", "null"], example: "newemail@example.com" },
-                        phoneNumber: { type: ["string", "null"], example: "9999999999" },
+
+                        email: {
+                            type: ["string", "null"],
+                            example: "john@example.com",
+                        },
+                        pendingEmail: {
+                            type: ["string", "null"],
+                            example: "newemail@example.com",
+                        },
+
+                        // convenience field – usually mapped from profile.phone
+                        phoneNumber: {
+                            type: ["string", "null"],
+                            example: "9999999999",
+                        },
+
                         isActive: { type: "boolean", example: true },
                         isProfileComplete: { type: "boolean", example: true },
+
                         profile: {
                             type: ["object", "null"],
                             properties: {
                                 id: { type: "string", example: "profile-uuid" },
                                 customerId: { type: "string", example: "customer-uuid" },
                                 fullName: { type: "string", example: "John Doe" },
-                                email: { type: ["string", "null"], example: "john@example.com" },
-                                phone: { type: "string", example: "9999999999" },
+                                email: {
+                                    type: ["string", "null"],
+                                    example: "john@example.com",
+                                },
+                                phone: {
+                                    type: ["string", "null"],
+                                    example: "9999999999",
+                                },
                                 photoUrl: {
-                                    type: "string",
+                                    type: ["string", "null"],
                                     example: "https://cdn.example.com/profile.jpg",
                                 },
                                 countryCode: {
@@ -127,7 +158,8 @@ export const ResponseSchema = {
                 success: { type: "boolean", example: false },
                 message: {
                     type: "string",
-                    example: "Cannot update email. Account must be active to change email address",
+                    example:
+                        "Cannot update email. Account must be active to change email address",
                 },
             },
         },
@@ -137,7 +169,11 @@ export const ResponseSchema = {
             required: ["success", "message"],
             properties: {
                 success: { type: "boolean", example: false },
-                message: { type: "string", example: "Customer not found / Customer profile not found" },
+                message: {
+                    type: "string",
+                    example:
+                        "Customer not found / Customer profile not found. Please create profile first.",
+                },
             },
         },
 
@@ -148,7 +184,8 @@ export const ResponseSchema = {
                 success: { type: "boolean", example: false },
                 message: {
                     type: "string",
-                    example: "Phone number already in use / Email already in use",
+                    example:
+                        "Phone number already in use by another customer / Email already in use by another customer",
                 },
             },
         },
@@ -164,5 +201,5 @@ export const ResponseSchema = {
                 },
             },
         },
-    },
+    }
 };

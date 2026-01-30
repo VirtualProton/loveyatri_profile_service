@@ -264,19 +264,275 @@ export const ResponseSchema = {
     UpdateOwnerProfileResponseSchema: {
         200: {
             type: "object",
-            required: ["success", "message"],
+            required: [
+                "success",
+                "message",
+                "emailVerificationRequired",
+                "emailChangeLink",
+                "phoneOtpSent",
+                "owner",
+            ],
             properties: {
                 success: { type: "boolean", example: true },
+
                 message: {
                     type: "string",
                     example: "Owner profile updated successfully",
                 },
+
+                emailVerificationRequired: {
+                    type: "boolean",
+                    example: false,
+                    description:
+                        "True if email was changed and verification via email link is required",
+                },
+
                 emailChangeLink: {
                     type: ["string", "null"],
-                    example:
-                        "https://app.example.com/verify-email-change?token=encoded-token",
+                    example: null,
                     description:
-                        "Returned only when email change verification is required",
+                        "Email verification link (present only if emailVerificationRequired is true)",
+                },
+
+                phoneOtpSent: {
+                    type: "boolean",
+                    example: false,
+                    description:
+                        "True if phone number was updated and an OTP was sent to the new phone number",
+                },
+
+                owner: {
+                    type: "object",
+                    required: [
+                        "id",
+                        "fullName",
+                        "email",
+                        "isActive",
+                        "isProfileComplete",
+                    ],
+                    properties: {
+                        id: { type: "string", example: "admin-uuid" },
+                        fullName: { type: "string", example: "John Owner" },
+                        email: { type: "string", example: "owner@example.com" },
+
+                        isActive: { type: "boolean", example: true },
+                        isProfileComplete: { type: "boolean", example: true },
+
+                        profile: {
+                            type: ["object", "null"],
+                            properties: {
+                                id: { type: "string", example: "profile-uuid" },
+                                adminId: { type: "string", example: "admin-uuid" },
+
+                                phone: {
+                                    type: "string",
+                                    example: "9999999999",
+                                },
+
+                                countryCode: {
+                                    type: ["string", "null"],
+                                    example: "+91",
+                                },
+
+                                preferredLanguage: {
+                                    type: "string",
+                                    example: "EN",
+                                },
+
+                                photoUrl: {
+                                    type: ["string", "null"],
+                                    example: "https://cdn.example.com/profile.jpg",
+                                },
+
+                                shortBio: {
+                                    type: ["string", "null"],
+                                    example: "Experienced property owner",
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        400: {
+            type: "object",
+            required: ["success", "message"],
+            properties: {
+                success: { type: "boolean", example: false },
+                message: {
+                    type: "string",
+                    example:
+                        "You can update either email or phone at a time, not both / No changes provided to update",
+                },
+            },
+        },
+
+        403: {
+            type: "object",
+            required: ["success", "message"],
+            properties: {
+                success: { type: "boolean", example: false },
+                message: {
+                    type: "string",
+                    example:
+                        "Cannot update email. Account must be active to change email address",
+                },
+            },
+        },
+
+        404: {
+            type: "object",
+            required: ["success", "message"],
+            properties: {
+                success: { type: "boolean", example: false },
+                message: {
+                    type: "string",
+                    example: "Owner not found / Owner profile not found",
+                },
+            },
+        },
+
+        409: {
+            type: "object",
+            required: ["success", "message"],
+            properties: {
+                success: { type: "boolean", example: false },
+                message: {
+                    type: "string",
+                    example:
+                        "Email already in use / Phone number already in use by another owner",
+                },
+            },
+        },
+
+        500: {
+            type: "object",
+            required: ["success", "message"],
+            properties: {
+                success: { type: "boolean", example: false },
+                message: {
+                    type: "string",
+                    example: "Owner profile update failed",
+                },
+            },
+        },
+    },
+    VerifyOwnerEmailChangeResponseSchema: {
+        200: {
+            type: "object",
+            required: ["success", "message", "owner"],
+            properties: {
+                success: {
+                    type: "boolean",
+                    example: true,
+                },
+
+                message: {
+                    type: "string",
+                    example: "Email change verified successfully",
+                },
+
+                owner: {
+                    type: "object",
+                    required: [
+                        "id",
+                        "fullName",
+                        "email",
+                        "isActive",
+                        "isProfileComplete",
+                    ],
+                    properties: {
+                        id: {
+                            type: "string",
+                            example: "admin-uuid",
+                        },
+
+                        fullName: {
+                            type: "string",
+                            example: "John Owner",
+                        },
+
+                        email: {
+                            type: "string",
+                            example: "newemail@example.com",
+                        },
+
+                        isActive: {
+                            type: "boolean",
+                            example: true,
+                        },
+
+                        isProfileComplete: {
+                            type: "boolean",
+                            example: true,
+                        },
+
+                        profile: {
+                            type: ["object", "null"],
+                            properties: {
+                                id: {
+                                    type: "string",
+                                    example: "profile-uuid",
+                                },
+
+                                adminId: {
+                                    type: "string",
+                                    example: "admin-uuid",
+                                },
+
+                                phone: {
+                                    type: "string",
+                                    example: "9999999999",
+                                },
+
+                                countryCode: {
+                                    type: ["string", "null"],
+                                    example: "+91",
+                                },
+
+                                preferredLanguage: {
+                                    type: "string",
+                                    example: "EN",
+                                },
+
+                                photoUrl: {
+                                    type: ["string", "null"],
+                                    example: "https://cdn.example.com/profile.jpg",
+                                },
+
+                                shortBio: {
+                                    type: ["string", "null"],
+                                    example: "Experienced property owner",
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        400: {
+            type: "object",
+            required: ["success", "message"],
+            properties: {
+                success: { type: "boolean", example: false },
+                message: {
+                    type: "string",
+                    example:
+                        "Invalid or expired email change token / This email change link is no longer valid",
+                },
+            },
+        },
+
+        401: {
+            type: "object",
+            required: ["success", "message"],
+            properties: {
+                success: { type: "boolean", example: false },
+                message: {
+                    type: "string",
+                    example: "Token expired / Invalid token",
                 },
             },
         },
@@ -300,8 +556,7 @@ export const ResponseSchema = {
                 success: { type: "boolean", example: false },
                 message: {
                     type: "string",
-                    example:
-                        "Email already in use / Provided email is already associated with your account",
+                    example: "Email already in use by another owner",
                 },
             },
         },
@@ -313,73 +568,12 @@ export const ResponseSchema = {
                 success: { type: "boolean", example: false },
                 message: {
                     type: "string",
-                    example: "Owner profile update failed",
-                },
-            },
-        },
-    },
-    VerifyEmailChangeResponseSchema: {
-        200: {
-            type: "object",
-            required: ["success", "message"],
-            properties: {
-                success: {
-                    type: "boolean",
-                    example: true,
-                },
-                message: {
-                    type: "string",
-                    example: "Email change verified successfully",
-                },
-            },
-        },
-
-        401: {
-            type: "object",
-            required: ["success", "message"],
-            properties: {
-                success: {
-                    type: "boolean",
-                    example: false,
-                },
-                message: {
-                    type: "string",
-                    example: "Invalid or expired token",
-                },
-            },
-        },
-
-        404: {
-            type: "object",
-            required: ["success", "message"],
-            properties: {
-                success: {
-                    type: "boolean",
-                    example: false,
-                },
-                message: {
-                    type: "string",
-                    example: "Admin not found or email mismatch",
-                },
-            },
-        },
-
-        500: {
-            type: "object",
-            required: ["success", "message"],
-            properties: {
-                success: {
-                    type: "boolean",
-                    example: false,
-                },
-                message: {
-                    type: "string",
                     example: "Email change verification failed",
                 },
             },
         },
     },
-    GetOwnerProfileResponseSchema :{
+    GetOwnerProfileResponseSchema: {
         200: {
             type: "object",
             required: ["success", "message", "data"],
