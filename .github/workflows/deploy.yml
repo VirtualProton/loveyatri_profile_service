@@ -43,6 +43,8 @@ jobs:
             echo "📦 Installing dependencies"
             npm install
 
+            npx prisma generate
+            
             echo "🏗️ Building application"
             npm run build
 
