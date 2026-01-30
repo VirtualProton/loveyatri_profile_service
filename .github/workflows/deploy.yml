@@ -47,8 +47,8 @@ jobs:
             npm run build
 
             echo "♻️ Restarting PM2"
-            pm2 restart profile_service || \
-            pm2 start dist/server.js --name profile_service
+            pm2 restart profile|| \
+            pm2 start dist/server.js --name profile
 
             pm2 restart 2 ||  pm2 restart gateway 
             pm2 save
@@ -74,7 +74,8 @@ jobs:
             npm install
             npm run build
 
-            pm2 restart gateway-service
+            pm2 restart profile|| 
+            pm2 start dist/server.js --name profile
             pm2 save
 
             echo "🔁 Rollback completed"
