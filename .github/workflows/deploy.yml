@@ -22,20 +22,26 @@ jobs:
           node-version: 20
           cache: npm
 
-      # ✅ Build on GitHub (NOT on EC2)
+      # ✅ Install dependencies
       - name: Install dependencies (CI)
         run: npm ci
 
-      # ✅ Prisma generate (CI) - optional but good to catch issues early
-      - name: Prisma Generate (CI)
-        run: npx prisma generate
+      # ✅ Prisma validate + generate (CI)
+      - name: Prisma Validate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma validate
 
+      - name: Prisma Generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma generate
+
+      # ✅ Build
       - name: Build
         run: npm run build
 
-      # ✅ Create deploy bundle (dist + package*.json + prisma)
+      # ✅ Create deploy bundle
       - name: Create deploy bundle
         run: |
           mkdir -p deploy
@@ -51,16 +57,18 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      # ✅ Upload artifact to EC2
+      # ✅ Upload artifact
       - name: Upload bundle to EC2
         run: |
           scp -i ~/.ssh/id_ed25519 deploy.tgz \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/profile.tgz
 
-      # ✅ Deploy (release + symlink) and reload PM2 ecosystem
+      # ✅ Deploy on EC2 (NO db push / NO migrate)
       - name: Deploy on EC2 (release + symlink)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "DATABASE_URL='${DATABASE_URL}' bash -s" << 'EOF'
             set -euo pipefail
 
             # 🔑 Load NVM (if used)
@@ -87,21 +95,17 @@ jobs:
             # ✅ Install production deps only
             npm ci --omit=dev --no-audit --no-fund
 
-            # ✅ Load shared .env (only needed for prisma generate at runtime)
-            if [ -f "$ROOT/.env" ]; then
-              echo "✅ Loading env from $ROOT/.env"
-              set -o allexport
-              source "$ROOT/.env"
-              set +o allexport
-            fi
-
-            # ✅ Prisma generate on server (recommended for correct binary for that machine)
+            # ✅ Prisma generate only (no DB changes)
             if [ -d prisma ]; then
-              echo "🧬 Prisma generate (server)"
+              if [ -z "${DATABASE_URL:-}" ]; then
+                echo "❌ DATABASE_URL is empty in deploy session"
+                exit 1
+              fi
+              echo "🧬 Prisma generate (no DB changes)"
               npx prisma generate
             fi
 
-            # ✅ Switch current symlink
+            # ✅ Switch symlink
             ln -sfn "$NEW_RELEASE" "$SERVICE_DIR/current"
 
             # ✅ Keep last 5 releases
