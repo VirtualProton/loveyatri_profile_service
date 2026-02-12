@@ -6,7 +6,7 @@ export const CustomerProfileGetService = async (customerId: string) => {
         const customer = await prisma.customer.findUnique({
             where: { id: customerId },
             include: {
-                profile: true
+                CustomerProfile: true
             },
         });
 

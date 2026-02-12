@@ -30,7 +30,7 @@ export const CustomerProfileUpdateService = async (data: {
             // 1. Get current customer and profile
             const customer = await tx.customer.findUnique({
                 where: { id: customerId },
-                include: { profile: true },
+                include: { CustomerProfile: true },
             });
 
             if (!customer) {
@@ -38,7 +38,7 @@ export const CustomerProfileUpdateService = async (data: {
             }
 
             const currentEmail = customer.email;
-            const currentPhone = customer.profile?.phone ?? null;
+            const currentPhone = customer.CustomerProfile?.phone ?? null;
 
             // 2. Decide what is actually changing
             const wantsEmailChange =
@@ -196,7 +196,7 @@ export const CustomerProfileUpdateService = async (data: {
             }
 
             if (hasProfileChanges) {
-                if (customer.profile) {
+                if (customer.CustomerProfile) {
                     await tx.customerProfile.update({
                         where: { customerId },
                         data: profileUpdateData,
@@ -213,7 +213,7 @@ export const CustomerProfileUpdateService = async (data: {
             // 11. Fetch updated customer with profile
             const updatedCustomer = await tx.customer.findUnique({
                 where: { id: customerId },
-                include: { profile: true },
+                include: { CustomerProfile: true },
             });
 
             if (!updatedCustomer) {
@@ -302,7 +302,7 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
       // 2. Load customer + profile
       const customer = await tx.customer.findUnique({
         where: { id: customerId },
-        include: { profile: true },
+        include: { CustomerProfile: true },
       });
 
       if (!customer) {
@@ -359,11 +359,11 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
             increment: 1, // 🔑 makes this token (and any previous ones) invalid
           },
         },
-        include: { profile: true },
+        include: { CustomerProfile: true },
       });
 
       // Optionally also sync profile.email to new email
-      if (updatedCustomer.profile) {
+      if (updatedCustomer.CustomerProfile) {
         await tx.customerProfile.update({
           where: { customerId },
           data: {
@@ -375,7 +375,7 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
       // Re-fetch to return fully consistent data
       const finalCustomer = await tx.customer.findUnique({
         where: { id: customerId },
-        include: { profile: true },
+        include: { CustomerProfile: true },
       });
 
       if (!finalCustomer) {

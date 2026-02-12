@@ -285,17 +285,23 @@ model Customer {
 }
 
 model CustomerProfile {
-  id          String   @id
-  customerId  String   @unique
+  id         String @id @default(uuid())
+  customerId String @unique
+
   photoUrl    String
-  phone       String   @unique
-  countryCode String?  @default("+91")
-  address     String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime
-  email       String?  @unique
-  fullName    String
-  Customer    Customer @relation(fields: [customerId], references: [id])
+  phone       String  @unique
+  countryCode String? @default("+91")
+  address     String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  email    String? @unique
+  fullName String
+
+  Customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
 }
 
 model Coupon {
@@ -537,22 +543,20 @@ model PropertyRefundPolicyLap {
   @@index([propertyRefundPolicyId])
 }
 
-
-
 model UnitRoom {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   unitId     String
   propertyId String
   roomNumber String
   floor      String?
-  notes      String?  @db.Text
-  isDeleted  Boolean  @default(false)
+  notes      String?   @db.Text
+  isDeleted  Boolean   @default(false)
   deletedAt  DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  Property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  Unit       Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  Property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  Unit     Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
 
   @@unique([propertyId, roomNumber])
   @@index([propertyId])

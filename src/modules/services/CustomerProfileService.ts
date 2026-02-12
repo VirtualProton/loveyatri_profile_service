@@ -57,7 +57,7 @@ export const CustomerProfileService = async (data: {
                     address: data.address ?? null,
                 },
                 include: {
-                    customer: {
+                    Customer: {
                         select: { fullName: true, email: true }
                     }
                 },
