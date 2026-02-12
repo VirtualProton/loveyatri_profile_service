@@ -1,6 +1,8 @@
 import dotenv from "dotenv";
 
-dotenv.config();
+if (process.env.NODE_ENV !== "production") {
+  dotenv.config();
+}
 
 function required(name: string): string {
   const value = process.env[name];
@@ -12,7 +14,7 @@ function required(name: string): string {
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
-  PORT: Number(process.env.PORT ?? 3001),
+  PORT: Number(process.env.PROFILE_PORT ?? 3001),
   DATABASE_URL: required("DATABASE_URL"),
   JWT_SECRET: required("JWT_SECRET"),
   SUPER_ADMIN_EMAIL: required("SUPER_ADMIN_EMAIL"),

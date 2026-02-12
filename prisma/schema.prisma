@@ -7,35 +7,50 @@ datasource db {
   provider = "mysql"
 }
 
+model TokenBlacklist {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique @db.VarChar(64)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
 model Admin {
-  id                   String        @id @default(uuid())
-  role                 AdminRole     @default(ADMIN)
-  fullName             String
-  email                String        @unique
-  passwordHash         String
-  permissions          Json?
-  isActive             Boolean       @default(false)
-  isProfileComplete    Boolean       @default(false)
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
-  resetPasswordVersion Int           @default(0)
-  emailVerifyVersion   Int           @default(0)
-  profile              AdminProfile? @relation("AdminProfile")
-  Property             Property[]
-  staff                Staff[]       @relation("AdminStaff")
+  id                                    String                     @id @default(uuid())
+  role                                  AdminRole                  @default(ADMIN)
+  fullName                              String
+  email                                 String                     @unique
+  passwordHash                          String
+  permissions                           Json?
+  isActive                              Boolean                    @default(false)
+  isProfileComplete                     Boolean                    @default(false)
+  createdAt                             DateTime                   @default(now())
+  updatedAt                             DateTime                   @updatedAt
+  resetPasswordVersion                  Int                        @default(0)
+  emailVerifyVersion                    Int                        @default(0)
+  profile                               AdminProfile?              @relation("AdminProfile")
+  Booking                               Booking[]
+  BookingPayment                        BookingPayment[]
+  Coupon_Coupon_adminIdToAdmin          Coupon[]                   @relation("Coupon_adminIdToAdmin")
+  Coupon_Coupon_createdByAdminIdToAdmin Coupon[]                   @relation("Coupon_createdByAdminIdToAdmin")
+  PlatformCommissionConfig              PlatformCommissionConfig[]
+  properties                            Property[]
+  staff                                 Staff[]                    @relation("AdminStaff")
 }
 
 model AdminProfile {
-  id                String            @id @default(uuid())
-  adminId           String            @unique
-  photoUrl          String
-  phone             String            @unique
-  countryCode       String?           @default("+91")
-  preferredLanguage preferredLanguage @default(EN)
-  shortBio          String?           @db.Text
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  admin             Admin             @relation("AdminProfile", fields: [adminId], references: [id])
+  id                        String            @id @default(uuid())
+  adminId                   String            @unique
+  photoUrl                  String
+  phone                     String            @unique
+  countryCode               String?           @default("+91")
+  preferredLanguage         PreferredLanguage @default(EN)
+  shortBio                  String?           @db.Text
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+  commissionPercentOverride Float?
+  admin                     Admin             @relation("AdminProfile", fields: [adminId], references: [id])
 }
 
 model Staff {
@@ -53,190 +68,495 @@ model Staff {
   @@index([adminId], map: "Staff_adminId_fkey")
 }
 
-model TokenBlacklist {
+model Property {
+  id                        String                @id @default(uuid())
+  adminId                   String
+  type                      PropertyType
+  status                    ListingStatus         @default(DRAFT)
+  name                      String
+  city                      String
+  state                     String
+  country                   country               @default(India)
+  addressLine1              String
+  addressLine2              String?
+  pincode                   String
+  latitude                  Float?
+  longitude                 Float?
+  description               String?               @db.Text
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
+  approvedAt                DateTime?
+  approvedBy                String?
+  rejectedAt                DateTime?
+  rejectedBy                String?
+  reviewNote                String?               @db.Text
+  archivedAt                DateTime?
+  archivedBy                String?
+  avgRating                 Float                 @default(0)
+  ratingCount               Int                   @default(0)
+  commissionPercentOverride Float?
+  isSponsored               Boolean               @default(false)
+  sponsoredEndAt            DateTime?
+  sponsoredPriority         Int                   @default(0)
+  sponsoredStartAt          DateTime?
+  advancePaymentType        AdvancePaymentType    @default(PERCENTAGE)
+  advancePaymentValue       Float                 @default(0)
+  advanceRefundable         Boolean               @default(true)
+  Booking                   Booking[]
+  BookingPayment            BookingPayment[]
+  Coupon                    Coupon[]
+  customAmenities           CustomAmenity[]
+  policies                  Policy[]
+  admin                     Admin                 @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  amenities                 PropertyAmenity[]
+  images                    PropertyImage[]
+  refundPolicy              PropertyRefundPolicy?
+  reviews                   PropertyReview[]
+  units                     Unit[]
+  UnitRoom                  UnitRoom[]
+
+  @@index([adminId])
+  @@index([type])
+  @@index([status])
+  @@index([city, state])
+  @@index([isSponsored, sponsoredEndAt])
+  @@index([sponsoredPriority])
+}
+
+model Unit {
+  id                      String          @id @default(uuid())
+  propertyId              String
+  type                    UnitType
+  name                    String?
+  bedrooms                Int?
+  bathrooms               Int?
+  /// 🧑‍🤝‍🧑 Absolute hard cap for this unit (total guests allowed)
+  maxGuests               Int?
+  /// 💰 Base price per night for up to `maxGuestsAtBasePrice`
+  basePrice               Float?
+  inventoryCount          Int?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  /// 💰 Per extra guest charge per night (beyond base, up to max)
+  extraGuestPricePerNight Float?
+  /// ➕ Optional explicit cap for extra guests (can also be derived)
+  maxExtraGuests          Int?
+  /// 👥 Guests included in basePrice (no extra charge up to this number)
+  maxGuestsAtBasePrice    Int?
+  bookingUnits            BookingUnit[]
+  property                Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  images                  UnitImage[]
+  UnitPriceRule           UnitPriceRule[]
+  UnitRoom                UnitRoom[]
+
+  @@index([propertyId])
+  @@index([type])
+}
+
+model PropertyImage {
+  id         String   @id @default(uuid())
+  propertyId String
+  imageUrl   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+}
+
+model UnitImage {
   id        String   @id @default(uuid())
-  tokenHash String   @unique @db.VarChar(64)
-  expiresAt DateTime
+  unitId    String
+  imageUrl  String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  unit      Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
 
-  @@index([expiresAt])
+  @@index([unitId])
 }
-
-model Customer {
-  id                   String           @id @default(uuid())
-  fullName             String
-  email                String           @unique
-  passwordHash         String?
-  googleId             String?          @unique
-  isActive             Boolean          @default(false)
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
-  isProfileComplete    Boolean          @default(false)
-  pendingEmail         String?          @unique
-  resetPasswordVersion Int              @default(0)
-  role                 String           @default("CUSTOMER")
-  emailVerifyVersion   Int              @default(0)
-  profile              CustomerProfile? @relation("CustomerProfile")
-  PropertyReview       PropertyReview[]
-}
-
-
-model CustomerProfile {
-  id          String   @id @default(uuid())
-  customerId  String   @unique
-  photoUrl    String
-  phone       String   @unique
-  countryCode String?  @default("+91")
-  address     String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  email       String?  @unique
-  fullName    String
-  customer    Customer @relation("CustomerProfile", fields: [customerId], references: [id])
-}
-
 
 model Amenity {
-  id              String            @id
-  name            String            @unique
-  iconKey         String?
-  PropertyAmenity PropertyAmenity[]
+  id         String            @id @default(uuid())
+  name       String            @unique
+  iconKey    String?
+  properties PropertyAmenity[]
+}
+
+model PropertyAmenity {
+  propertyId String
+  amenityId  String
+  amenity    Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@id([propertyId, amenityId])
+  @@index([amenityId], map: "PropertyAmenity_amenityId_fkey")
 }
 
 model CustomAmenity {
-  id         String   @id
+  id         String   @id @default(uuid())
   propertyId String
   adminId    String?
   name       String
   iconKey    String?
   createdAt  DateTime @default(now())
-  updatedAt  DateTime
-  Property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  updatedAt  DateTime @updatedAt
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@unique([propertyId, name])
   @@index([propertyId])
 }
 
 model Policy {
-  id         String      @id
+  id         String     @id @default(uuid())
   propertyId String
-  type       Policy_type
+  type       PolicyType
   title      String
-  content    String      @db.Text
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime
-  Property   Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  content    String     @db.Text
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  property   Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@index([propertyId])
-}
-
-model Property {
-  id              String            @id
-  adminId         String
-  type            Property_type
-  status          Property_status   @default(DRAFT)
-  name            String
-  city            String
-  state           String
-  country         Property_country  @default(India)
-  addressLine1    String
-  addressLine2    String?
-  pincode         String
-  latitude        Float?
-  longitude       Float?
-  description     String?           @db.Text
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime
-  approvedAt      DateTime?
-  approvedBy      String?
-  rejectedAt      DateTime?
-  rejectedBy      String?
-  reviewNote      String?           @db.Text
-  archivedAt      DateTime?
-  archivedBy      String?
-  avgRating       Float             @default(0)
-  ratingCount     Int               @default(0)
-  CustomAmenity   CustomAmenity[]
-  Policy          Policy[]
-  Admin           Admin             @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  PropertyAmenity PropertyAmenity[]
-  PropertyImage   PropertyImage[]
-  PropertyReview  PropertyReview[]
-  Unit            Unit[]
-
-  @@index([adminId])
-  @@index([city, state])
-  @@index([status])
-  @@index([type])
-}
-
-model PropertyAmenity {
-  propertyId String
-  amenityId  String
-  Amenity    Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
-  Property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-
-  @@id([propertyId, amenityId])
-  @@index([amenityId], map: "PropertyAmenity_amenityId_fkey")
-}
-
-model PropertyImage {
-  id         String   @id
-  propertyId String
-  imageUrl   String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime
-  Property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-
-  @@index([propertyId])
-}
-
-model Unit {
-  id             String      @id
-  propertyId     String
-  type           Unit_type
-  name           String?
-  bedrooms       Int?
-  bathrooms      Int?
-  maxGuests      Int?
-  basePrice      Float?
-  inventoryCount Int?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime
-  Property       Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  UnitImage      UnitImage[]
-
-  @@index([propertyId])
-  @@index([type])
-}
-
-model UnitImage {
-  id        String   @id
-  unitId    String
-  imageUrl  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime
-  Unit      Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
-
-  @@index([unitId])
 }
 
 model PropertyReview {
-  id         String   @id
+  id         String   @id @default(uuid())
   propertyId String
   customerId String
   rating     Int
   title      String?
   comment    String?  @db.Text
   createdAt  DateTime @default(now())
-  updatedAt  DateTime
-  Customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  Property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  updatedAt  DateTime @updatedAt
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@unique([propertyId, customerId])
+  @@index([propertyId])
+  @@index([customerId])
+  @@index([rating])
+}
+
+model UnitPriceRule {
+  id             String              @id @default(uuid())
+  unitId         String
+  ruleType       PriceRuleType
+  name           String
+  description    String?             @db.Text
+  isActive       Boolean             @default(true)
+  startDate      DateTime?
+  endDate        DateTime?
+  daysOfWeekMask Int?
+  minAdvanceDays Int?
+  maxAdvanceDays Int?
+  adjustmentType PriceAdjustmentType
+  amount         Float
+  priority       Int                 @default(0)
+  isStackable    Boolean             @default(false)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  unit           Unit                @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([unitId])
+  @@index([ruleType])
+  @@index([startDate, endDate])
+}
+
+model Customer {
+  id                        String                      @id @default(uuid())
+  fullName                  String
+  email                     String                      @unique
+  passwordHash              String?
+  googleId                  String?                     @unique
+  isActive                  Boolean                     @default(false)
+  createdAt                 DateTime                    @default(now())
+  updatedAt                 DateTime                    @updatedAt
+  isProfileComplete         Boolean                     @default(false)
+  pendingEmail              String?                     @unique
+  resetPasswordVersion      Int                         @default(0)
+  role                      String                      @default("CUSTOMER")
+  emailVerifyVersion        Int                         @default(0)
+  Booking                   Booking[]
+  BookingPayment            BookingPayment[]
+  CouponCustomerEligibility CouponCustomerEligibility[]
+  CouponUsage               CouponUsage[]
+  CustomerProfile           CustomerProfile?
+  reviews                   PropertyReview[]
+}
+
+model CustomerProfile {
+  id          String   @id
+  customerId  String   @unique
+  photoUrl    String
+  phone       String   @unique
+  countryCode String?  @default("+91")
+  address     String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  email       String?  @unique
+  fullName    String
+  Customer    Customer @relation(fields: [customerId], references: [id])
+}
+
+model Coupon {
+  id                                   String                      @id
+  code                                 String                      @unique
+  scope                                Coupon_scope
+  adminId                              String?
+  propertyId                           String?
+  createdByAdminId                     String
+  targetType                           Coupon_targetType           @default(ALL_CUSTOMERS)
+  discountType                         Coupon_discountType
+  discountValue                        Float
+  maxDiscountAmount                    Float?
+  minBookingAmount                     Float?
+  currency                             String                      @default("INR")
+  description                          String?                     @db.Text
+  validFrom                            DateTime?
+  validTo                              DateTime?
+  status                               Coupon_status               @default(ACTIVE)
+  maxTotalUses                         Int?
+  maxUsesPerCustomer                   Int?
+  totalUses                            Int                         @default(0)
+  createdAt                            DateTime                    @default(now())
+  updatedAt                            DateTime
+  bookingChannel                       Coupon_bookingChannel       @default(ONLINE)
+  Booking                              Booking[]
+  Admin_Coupon_adminIdToAdmin          Admin?                      @relation("Coupon_adminIdToAdmin", fields: [adminId], references: [id])
+  Admin_Coupon_createdByAdminIdToAdmin Admin                       @relation("Coupon_createdByAdminIdToAdmin", fields: [createdByAdminId], references: [id])
+  Property                             Property?                   @relation(fields: [propertyId], references: [id])
+  CouponCustomerEligibility            CouponCustomerEligibility[]
+  CouponUsage                          CouponUsage[]
+
+  @@index([adminId])
+  @@index([code])
+  @@index([createdByAdminId], map: "Coupon_createdByAdminId_fkey")
+  @@index([propertyId])
+  @@index([scope])
+  @@index([status])
+  @@index([status, validFrom, validTo])
+}
+
+model CouponCustomerEligibility {
+  id         String   @id
+  couponId   String
+  customerId String
+  createdAt  DateTime @default(now())
+  Coupon     Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  Customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, customerId])
+  @@index([customerId])
+}
+
+model CouponUsage {
+  id         String    @id
+  couponId   String
+  customerId String
+  usedCount  Int       @default(0)
+  lastUsedAt DateTime?
+  Coupon     Coupon    @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  Customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, customerId])
+  @@index([couponId])
+  @@index([customerId])
+}
+
+model EmailLog {
+  id           String          @id
+  to           String
+  subject      String
+  templateName String
+  payloadJson  String
+  status       EmailLog_status
+  messageId    String?
+  errorMessage String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime
+}
+
+model PlatformCommissionConfig {
+  id                       String   @id @default("platform-commission")
+  defaultCommissionPercent Float    @default(15)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime
+  updatedByAdminId         String?
+  Admin                    Admin?   @relation(fields: [updatedByAdminId], references: [id])
+
+  @@index([updatedByAdminId], map: "PlatformCommissionConfig_updatedByAdminId_fkey")
+}
+
+model Booking {
+  id                   String                      @id
+  code                 String                      @unique
+  propertyId           String
+  adminId              String
+  customerId           String?
+  status               Booking_status              @default(PENDING)
+  channel              Booking_channel             @default(ONLINE)
+  paymentPlan          Booking_paymentPlan         @default(FULL)
+  checkIn              DateTime
+  checkOut             DateTime
+  guestName            String
+  guestEmail           String?
+  guestPhone           String?
+  adultCount           Int                         @default(1)
+  childCount           Int                         @default(0)
+  infantCount          Int                         @default(0)
+  baseAmount           Decimal                     @db.Decimal(10, 2)
+  discountAmount       Decimal                     @default(0.00) @db.Decimal(10, 2)
+  taxAmount            Decimal                     @default(0.00) @db.Decimal(10, 2)
+  totalPayableAmount   Decimal                     @db.Decimal(10, 2)
+  currency             String                      @default("INR")
+  paidAmount           Decimal                     @default(0.00) @db.Decimal(10, 2)
+  dueAmount            Decimal                     @default(0.00) @db.Decimal(10, 2)
+  advancePaymentType   Booking_advancePaymentType?
+  advancePaymentValue  Float?
+  advanceAmount        Decimal?                    @db.Decimal(10, 2)
+  remainingAmount      Decimal?                    @db.Decimal(10, 2)
+  commissionPercent    Float
+  commissionAmount     Decimal                     @db.Decimal(10, 2)
+  netAmountToAdmin     Decimal                     @db.Decimal(10, 2)
+  couponId             String?
+  couponCode           String?
+  couponDiscountAmount Decimal                     @default(0.00) @db.Decimal(10, 2)
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime
+  canceledAt           DateTime?
+  cancellationReason   String?                     @db.Text
+  canceledByAdminId    String?
+  canceledByCustomerId String?
+  Admin                Admin                       @relation(fields: [adminId], references: [id])
+  Coupon               Coupon?                     @relation(fields: [couponId], references: [id])
+  Customer             Customer?                   @relation(fields: [customerId], references: [id])
+  Property             Property                    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  BookingPayment       BookingPayment[]
+  BookingUnit          BookingUnit[]
+
+  @@index([adminId])
+  @@index([checkIn, checkOut])
+  @@index([couponId], map: "Booking_couponId_fkey")
   @@index([customerId])
   @@index([propertyId])
-  @@index([rating])
+  @@index([status])
+}
+
+model BookingPayment {
+  id              String                  @id
+  bookingId       String
+  propertyId      String
+  adminId         String
+  customerId      String?
+  provider        BookingPayment_provider
+  method          BookingPayment_method
+  status          BookingPayment_status   @default(PENDING)
+  amount          Decimal                 @db.Decimal(10, 2)
+  currency        String                  @default("INR")
+  isAdvance       Boolean                 @default(false)
+  isSettlement    Boolean                 @default(false)
+  orderId         String?
+  paymentId       String?
+  referenceCode   String?
+  meta            Json?
+  rawRequestJson  String?                 @db.LongText
+  rawResponseJson String?                 @db.LongText
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime
+  Admin           Admin                   @relation(fields: [adminId], references: [id])
+  Booking         Booking                 @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  Customer        Customer?               @relation(fields: [customerId], references: [id])
+  Property        Property                @relation(fields: [propertyId], references: [id])
+  BookingRefund   BookingRefund[]
+
+  @@index([adminId])
+  @@index([bookingId])
+  @@index([customerId])
+  @@index([propertyId])
+  @@index([status])
+}
+
+model BookingRefund {
+  id               String               @id
+  bookingPaymentId String
+  amount           Decimal              @db.Decimal(10, 2)
+  status           BookingRefund_status @default(PENDING)
+  reason           String?              @db.Text
+  refundId         String?
+  rawRequestJson   String?              @db.LongText
+  rawResponseJson  String?              @db.LongText
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime
+  BookingPayment   BookingPayment       @relation(fields: [bookingPaymentId], references: [id], onDelete: Cascade)
+
+  @@index([bookingPaymentId])
+}
+
+model BookingUnit {
+  id               String                       @id
+  bookingId        String
+  unitId           String
+  unitNameSnapshot String?
+  unitTypeSnapshot BookingUnit_unitTypeSnapshot
+  pricePerNight    Decimal                      @db.Decimal(10, 2)
+  nights           Int
+  quantity         Int                          @default(1)
+  lineAmount       Decimal                      @db.Decimal(10, 2)
+  Booking          Booking                      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  Unit             Unit                         @relation(fields: [unitId], references: [id])
+
+  @@index([bookingId])
+  @@index([unitId])
+}
+
+model PropertyRefundPolicy {
+  id         String                    @id @default(uuid())
+  propertyId String                    @unique
+  createdAt  DateTime                  @default(now())
+  updatedAt  DateTime                  @updatedAt
+  property   Property                  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  laps       PropertyRefundPolicyLap[]
+
+  @@index([propertyId])
+}
+
+model PropertyRefundPolicyLap {
+  id                       String                 @id @default(uuid())
+  propertyRefundPolicyId   String
+  lapNumber                Int
+  cutoffHoursBeforeCheckIn Int
+  refundType               RefundPolicyRefundType
+  refundValue              Float?
+  isDeleted                Boolean                @default(false)
+  deletedAt                DateTime?
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  policy                   PropertyRefundPolicy   @relation(fields: [propertyRefundPolicyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyRefundPolicyId, lapNumber])
+  @@index([propertyRefundPolicyId])
+}
+
+
+
+model UnitRoom {
+  id         String   @id @default(uuid())
+  unitId     String
+  propertyId String
+  roomNumber String
+  floor      String?
+  notes      String?  @db.Text
+  isDeleted  Boolean  @default(false)
+  deletedAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  Property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  Unit       Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, roomNumber])
+  @@index([propertyId])
+  @@index([unitId])
 }
 
 enum AdminRole {
@@ -244,13 +564,25 @@ enum AdminRole {
   ADMIN
 }
 
-enum preferredLanguage {
+enum PreferredLanguage {
   EN
   HI
   TE
 }
 
-enum Policy_type {
+enum PropertyType {
+  VILLA
+  FARM_HOUSE
+  RESORT
+  HOME_STAY
+}
+
+enum UnitType {
+  ENTIRE_PROPERTY
+  ROOM_TYPE
+}
+
+enum PolicyType {
   CANCELLATION
   HOUSE_RULES
   CHECKIN
@@ -258,27 +590,131 @@ enum Policy_type {
   OTHER
 }
 
-enum Property_type {
-  VILLA
-  FARM_HOUSE
-  RESORT
-  HOME_STAY
-}
-
-enum Unit_type {
-  ENTIRE_PROPERTY
-  ROOM_TYPE
-}
-
-enum Property_country {
-  India
-}
-
-enum Property_status {
+enum ListingStatus {
   DRAFT
   PENDING_APPROVAL
   PUBLISHED
   SUSPENDED
   REJECTED
   ARCHIVED
+}
+
+enum country {
+  India
+}
+
+enum Coupon_scope {
+  PLATFORM
+  ADMIN
+  PROPERTY
+}
+
+enum EmailLog_status {
+  SENT
+  FAILED
+}
+
+enum Coupon_targetType {
+  ALL_CUSTOMERS
+  SPECIFIC_CUSTOMERS
+}
+
+enum Coupon_discountType {
+  PERCENTAGE
+  FLAT
+}
+
+enum Coupon_status {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum Coupon_bookingChannel {
+  ONLINE
+  OFFLINE
+}
+
+enum AdvancePaymentType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum PriceRuleType {
+  WEEKEND
+  DATE_RANGE
+  LAST_MINUTE
+  EARLY_BIRD
+}
+
+enum PriceAdjustmentType {
+  PERCENTAGE
+  FLAT
+}
+
+enum BookingRefund_status {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum BookingUnit_unitTypeSnapshot {
+  ENTIRE_PROPERTY
+  ROOM_TYPE
+}
+
+enum Booking_status {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  COMPLETED
+  CANCELED
+  NO_SHOW
+}
+
+enum BookingPayment_provider {
+  RAZORPAY
+  STRIPE
+  CASHFREE
+  MANUAL
+  OTHER
+}
+
+enum Booking_channel {
+  ONLINE
+  OFFLINE
+}
+
+enum BookingPayment_method {
+  CARD
+  UPI
+  NET_BANKING
+  WALLET
+  CASH
+  BANK_TRANSFER
+  OTHER
+}
+
+enum Booking_paymentPlan {
+  FULL
+  ADVANCE
+}
+
+enum BookingPayment_status {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum Booking_advancePaymentType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum RefundPolicyRefundType {
+  FULL_REFUND
+  PERCENTAGE_DEDUCTION
+  FLAT_DEDUCTION
 }

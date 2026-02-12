@@ -1,6 +1,6 @@
 import type { FastifyRequest } from "fastify";
 
-export type OwnerProfileRequest =FastifyRequest<{
+export type OwnerProfileRequest = FastifyRequest<{
     Body: {
         adminId: string;
         photoUrl: string;

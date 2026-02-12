@@ -1,17 +1,48 @@
-name: Deploy Profile Service
+name: Deploy Profile Service (artifact)
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+
+concurrency:
+  group: deploy-profile
+  cancel-in-progress: true
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Use Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # ✅ Build on GitHub (NOT on EC2)
+      - name: Install dependencies (CI)
+        run: npm ci
+
+      # ✅ Prisma generate (CI) - optional but good to catch issues early
+      - name: Prisma Generate (CI)
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Build
+        run: npm run build
+
+      # ✅ Create deploy bundle (dist + package*.json + prisma)
+      - name: Create deploy bundle
+        run: |
+          mkdir -p deploy
+          cp -r dist deploy/
+          cp package.json package-lock.json deploy/
+          if [ -d prisma ]; then cp -r prisma deploy/; fi
+          tar -czf deploy.tgz -C deploy .
 
       - name: Setup SSH
         run: |
@@ -20,65 +51,66 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy to EC2 (safe + rollback)
+      # ✅ Upload artifact to EC2
+      - name: Upload bundle to EC2
         run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            set -e
+          scp -i ~/.ssh/id_ed25519 deploy.tgz \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/profile.tgz
 
-            # 🔑 Load NVM
+      # ✅ Deploy (release + symlink) and reload PM2 ecosystem
+      - name: Deploy on EC2 (release + symlink)
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            set -euo pipefail
+
+            # 🔑 Load NVM (if used)
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 
             node -v
             npm -v
 
-            cd /home/ubuntu/loveyatri/loveyatri_profile_service
+            ROOT="/home/ubuntu/loveyatri"
+            SERVICE_DIR="$ROOT/profile"
+            RELEASES="$SERVICE_DIR/releases"
+            TS="$(date +%Y%m%d_%H%M%S)"
+            NEW_RELEASE="$RELEASES/$TS"
 
-            echo "📌 Saving current commit for rollback"
-            PREV_COMMIT=$(git rev-parse HEAD)
+            echo "📦 Deploying Profile -> $NEW_RELEASE"
 
-            echo "📥 Pulling latest code"
-            git pull origin main --force
+            mkdir -p "$NEW_RELEASE"
+            tar -xzf /tmp/profile.tgz -C "$NEW_RELEASE"
+            rm -f /tmp/profile.tgz
 
-            echo "📦 Installing dependencies"
-            npm install
+            cd "$NEW_RELEASE"
 
-            npx prisma generate
-            
-            echo "🏗️ Building application"
-            npm run build
+            # ✅ Install production deps only
+            npm ci --omit=dev --no-audit --no-fund
 
-            echo "♻️ Restarting PM2"
-            pm2 restart profile|| \
-            pm2 start dist/server.js --name profile
+            # ✅ Load shared .env (only needed for prisma generate at runtime)
+            if [ -f "$ROOT/.env" ]; then
+              echo "✅ Loading env from $ROOT/.env"
+              set -o allexport
+              source "$ROOT/.env"
+              set +o allexport
+            fi
 
-            pm2 restart 2 ||  pm2 restart gateway 
+            # ✅ Prisma generate on server (recommended for correct binary for that machine)
+            if [ -d prisma ]; then
+              echo "🧬 Prisma generate (server)"
+              npx prisma generate
+            fi
+
+            # ✅ Switch current symlink
+            ln -sfn "$NEW_RELEASE" "$SERVICE_DIR/current"
+
+            # ✅ Keep last 5 releases
+            cd "$RELEASES"
+            ls -1dt */ | tail -n +6 | xargs -r rm -rf
+
+            echo "♻️ Reloading PM2 via ecosystem"
+            pm2 reload "$ROOT/ecosystem.config.js" --update-env || pm2 restart "$ROOT/ecosystem.config.js" --update-env
             pm2 save
 
             echo "✅ Deployment successful"
-          EOF
-
-      - name: Rollback on failure
-        if: failure()
-        run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            set -e
-
-            # 🔑 Load NVM
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-
-            echo "❌ Deployment failed — rolling back"
-
-            cd /home/ubuntu/loveyatri/loveyatri_gateway
-
-            git reset --hard HEAD~1
-            npm install
-            npm run build
-
-            pm2 restart profile|| 
-            pm2 start dist/server.js --name profile
-            pm2 save
-
-            echo "🔁 Rollback completed"
           EOF
