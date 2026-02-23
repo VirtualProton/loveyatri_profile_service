@@ -3,72 +3,81 @@ import { CustomerProfileUpdateRequest } from "../../types.js";
 import { CustomerProfileUpdateService, VerifyCustomerEmailChangeService } from "../services/CustomerProfileUpdateService.js";
 import { AppError } from "../../utils/appError.js";
 
+
 export const CustomerProfileUpdateController = async (
-    req: FastifyRequest,
-    reply: FastifyReply
+  req: FastifyRequest,
+  reply: FastifyReply
 ) => {
-    try {
-        const body = req.body as CustomerProfileUpdateRequest["body"];
-        const {
-            customer,
-            emailChangeLink,
-            phoneOtpSent,
-        } = await CustomerProfileUpdateService(body);
+  try {
+    // If you have a typed request, keep this cast:
+    const body = req.body as CustomerProfileUpdateRequest["body"];
 
-        if (emailChangeLink) {
-            return reply.status(200).send({
-                success: true,
-                message: "Email change verification link sent to new email address",
-                emailChangeLink,
-                customer,
-            });
-        }
+    const {
+      customer,
+      emailChangeLink,
+      phoneChanged,
+    } = await CustomerProfileUpdateService(body);
 
-        if (phoneOtpSent) {
-            return reply.status(200).send({
-                success: true,
-                message: "OTP sent to new phone number",
-                customer,
-            });
-        }
-
-        return reply.status(200).send({
-            success: true,
-            message: "Customer profile updated successfully",
-            customer,
-        });
-    } catch (err: any) {
-        // Default values
-        let statusCode = 500;
-        let message =
-            "An unexpected error occurred while updating the customer profile";
-
-        // Our own AppError (business / validation errors)
-        if (err instanceof AppError) {
-            statusCode = err.statusCode || 500;
-            message = err.message || message;
-        }
-        // Fastify / schema validation style error (if ever bubbled here)
-        else if (err?.validation) {
-            statusCode = 400;
-            message = "Request validation failed";
-            return reply.status(statusCode).send({
-                success: false,
-                message,
-                errors: err.validation,
-            });
-        }
-        // Prisma or other known libs can be handled here if you want
-        // else if (err?.code === "P2002") { ... }
-
-        // Log unexpected errors for debugging (server-side)
-        console.error("CustomerProfileUpdateController error:", err);
-
-        return reply.status(statusCode).send({
-            success: false,
-            message,
-        });
+    // Email change → verification link sent
+    if (emailChangeLink) {
+      return reply.status(200).send({
+        success: true,
+        message:
+          "Email change verification link sent to the new email address. Other profile details were updated successfully (if provided).",
+        emailChangeLink,
+        customer,
+      });
     }
+
+    // Phone change (via verified token)
+    if (phoneChanged) {
+      return reply.status(200).send({
+        success: true,
+        message: "Customer profile updated successfully. Phone number updated.",
+        customer,
+      });
+    }
+
+    // Only non-email / non-phone fields changed (name, photo, address, etc.)
+    return reply.status(200).send({
+      success: true,
+      message: "Customer profile updated successfully.",
+      customer,
+    });
+  } catch (err: any) {
+    // Default values
+    let statusCode = 500;
+    let message =
+      "An unexpected error occurred while updating the customer profile";
+
+    // Our own AppError (business / validation errors)
+    if (err instanceof AppError) {
+      statusCode = err.statusCode || 500;
+      message = err.message || message;
+    }
+    // Fastify / schema validation style error (if ever bubbled here)
+    else if (err?.validation) {
+      statusCode = 400;
+      message = "Request validation failed";
+
+      return reply.status(statusCode).send({
+        success: false,
+        message,
+        errors: err.validation,
+      });
+    }
+
+    // Log unexpected errors for debugging (server-side)
+    req.log?.error?.(
+      { err },
+      "CustomerProfileUpdateController unexpected error"
+    );
+
+    return reply.status(statusCode).send({
+      success: false,
+      message,
+    });
+  }
 };
 
 

@@ -1,6 +1,6 @@
-export const OwnerProfileSchema = {
+export const OwnerProfileBodySchema = {
     type: "object",
-    required: ["adminId", "photoUrl", "phone", "preferredLanguage"],
+    required: ["adminId", "photoUrl", "preferredLanguage", "phoneVerificationToken"],
     additionalProperties: false,
 
     properties: {
@@ -14,24 +14,28 @@ export const OwnerProfileSchema = {
             type: "string",
             format: "uri",
             example: "https://example.com/profile.jpg",
-        },
-
-        phone: {
-            type: "string",
-            minLength: 10,
-            maxLength: 10,
-            example: "9876543210",
+            description: "Public URL of the owner's profile picture",
         },
 
         preferredLanguage: {
             type: "string",
             enum: ["EN", "HI", "TE"],
             example: "EN",
+            description: "Preferred language code for communication",
         },
 
         shortBio: {
             type: "string",
             example: "Experienced property owner and manager.",
+            description: "Short description/bio of the owner",
+        },
+
+        // 🔐 Phone verification token (JWT from OTP verification step)
+        phoneVerificationToken: {
+            type: "string",
+            example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            description:
+                "JWT issued after successful phone OTP verification. Encodes normalized phone and verification flag.",
         },
     },
 
@@ -39,8 +43,9 @@ export const OwnerProfileSchema = {
         required: {
             adminId: "adminId is required",
             photoUrl: "photoUrl is required",
-            phone: "phone number is required",
             preferredLanguage: "preferredLanguage is required",
+            phoneVerificationToken:
+                "phoneVerificationToken is required. Please verify your phone first.",
         },
         properties: {
             preferredLanguage:
@@ -66,6 +71,7 @@ export const OwnerProfileUpdateSchema = {
             description: "Admin ID (FK to Admin table)",
         },
 
+        // 🔹 Admin fields
         fullName: {
             type: "string",
             minLength: 2,
@@ -76,19 +82,15 @@ export const OwnerProfileUpdateSchema = {
             type: "string",
             format: "email",
             example: "rahul.sharma@example.com",
+            description:
+                "Changing email triggers verification flow. Cannot change email and phone together.",
         },
 
+        // 🔹 AdminProfile fields
         photoUrl: {
             type: "string",
             format: "uri",
             example: "https://example.com/profile.jpg",
-        },
-
-        phone: {
-            type: "string",
-            minLength: 10,
-            maxLength: 10,
-            example: "9876543210",
         },
 
         preferredLanguage: {
@@ -104,19 +106,26 @@ export const OwnerProfileUpdateSchema = {
             type: ["string", "null"],
             example: "Experienced property owner and manager.",
         },
+
+        // 🔐 Phone change via OTP verification token
+        phoneVerificationToken: {
+            type: "string",
+            example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            description:
+                "JWT issued after successful phone OTP verification. Encodes normalized phone and verification flag. Cannot be used together with email change.",
+        },
     },
 
     /**
      * At least one updatable field must be present
-     * (shortBio = null also counts as a valid update)
      */
     anyOf: [
         { required: ["fullName"] },
         { required: ["email"] },
         { required: ["photoUrl"] },
-        { required: ["phone"] },
         { required: ["preferredLanguage"] },
         { required: ["shortBio"] },
+        { required: ["phoneVerificationToken"] },
     ],
 
     errorMessage: {
@@ -124,7 +133,7 @@ export const OwnerProfileUpdateSchema = {
             adminId: "adminId is required",
         },
         anyOf:
-            "At least one field (fullName, email, photoUrl, phone, preferredLanguage, shortBio) must be provided for update",
+            "At least one field (fullName, email, photoUrl, preferredLanguage, shortBio, phoneVerificationToken) must be provided for update",
         properties: {
             email: "email must be a valid email address",
             preferredLanguage:
@@ -185,15 +194,17 @@ export const ResponseSchema = {
     OwnerProfileResponseSchema: {
         200: {
             type: "object",
+            additionalProperties: false,
             required: ["success", "message", "profile"],
             properties: {
                 success: { type: "boolean", example: true },
                 message: {
                     type: "string",
-                    example: "Owner profile updated successfully",
+                    example: "Owner profile updated successfully.",
                 },
                 profile: {
                     type: "object",
+                    additionalProperties: false,
                     required: [
                         "id",
                         "adminId",
@@ -202,10 +213,22 @@ export const ResponseSchema = {
                         "admin",
                     ],
                     properties: {
-                        id: { type: "string", example: "profile-uuid" },
-                        adminId: { type: "string", example: "admin-uuid" },
-                        phone: { type: "string", example: "9999999999" },
-                        preferredLanguage: { type: "string", example: "en" },
+                        id: {
+                            type: "string",
+                            example: "profile-uuid",
+                        },
+                        adminId: {
+                            type: "string",
+                            example: "admin-uuid",
+                        },
+                        phone: {
+                            type: "string",
+                            example: "919876543210", // normalized with country code
+                        },
+                        preferredLanguage: {
+                            type: "string",
+                            example: "EN", // matches enum ["EN", "HI", "TE"]
+                        },
                         shortBio: {
                             type: ["string", "null"],
                             example: "Property owner based in Mumbai",
@@ -216,10 +239,17 @@ export const ResponseSchema = {
                         },
                         admin: {
                             type: "object",
+                            additionalProperties: false,
                             required: ["fullName", "email"],
                             properties: {
-                                fullName: { type: "string", example: "John Doe" },
-                                email: { type: "string", example: "john@example.com" },
+                                fullName: {
+                                    type: "string",
+                                    example: "John Doe",
+                                },
+                                email: {
+                                    type: "string",
+                                    example: "john@example.com",
+                                },
                             },
                         },
                     },
@@ -227,8 +257,28 @@ export const ResponseSchema = {
             },
         },
 
+        // 🔹 400 – Validation + phone not verified + missing fields
+        400: {
+            type: "object",
+            additionalProperties: false,
+            required: ["success", "message"],
+            properties: {
+                success: { type: "boolean", example: false },
+                message: {
+                    type: "string",
+                    example:
+                        "Phone number is not verified - Please verify first before update.",
+                    // Other possible messages from service:
+                    // - "Admin ID is required."
+                    // - "Photo URL is required."
+                    // - "Preferred language is required."
+                },
+            },
+        },
+
         404: {
             type: "object",
+            additionalProperties: false,
             required: ["success", "message"],
             properties: {
                 success: { type: "boolean", example: false },
@@ -238,24 +288,30 @@ export const ResponseSchema = {
 
         409: {
             type: "object",
+            additionalProperties: false,
             required: ["success", "message"],
             properties: {
                 success: { type: "boolean", example: false },
                 message: {
                     type: "string",
-                    example: "Profile already completed / Phone number already in use",
+                    example: "Profile already completed",
+                    // Another possible message from service:
+                    // "Phone number already in use"
                 },
             },
         },
 
         500: {
             type: "object",
+            additionalProperties: false,
             required: ["success", "message"],
             properties: {
                 success: { type: "boolean", example: false },
                 message: {
                     type: "string",
-                    example: "Owner profile creation failed",
+                    example: "Owner profile creation failed: Unknown error",
+                    // Other possible messages from service:
+                    // - "Database error while creating owner profile."
                 },
             },
         },
@@ -264,12 +320,13 @@ export const ResponseSchema = {
     UpdateOwnerProfileResponseSchema: {
         200: {
             type: "object",
+            additionalProperties: false,
             required: [
                 "success",
                 "message",
                 "emailVerificationRequired",
                 "emailChangeLink",
-                "phoneOtpSent",
+                "phoneChanged",
                 "owner",
             ],
             properties: {
@@ -294,15 +351,16 @@ export const ResponseSchema = {
                         "Email verification link (present only if emailVerificationRequired is true)",
                 },
 
-                phoneOtpSent: {
+                phoneChanged: {
                     type: "boolean",
                     example: false,
                     description:
-                        "True if phone number was updated and an OTP was sent to the new phone number",
+                        "True if the phone number was updated using phoneVerificationToken",
                 },
 
                 owner: {
                     type: "object",
+                    additionalProperties: false,
                     required: [
                         "id",
                         "fullName",
@@ -320,13 +378,17 @@ export const ResponseSchema = {
 
                         profile: {
                             type: ["object", "null"],
+                            description:
+                                "Owner profile details. Null if profile has not been created yet.",
                             properties: {
                                 id: { type: "string", example: "profile-uuid" },
                                 adminId: { type: "string", example: "admin-uuid" },
 
                                 phone: {
                                     type: "string",
-                                    example: "9999999999",
+                                    example: "919876543210",
+                                    description:
+                                        "Normalized phone number with country code (digits only)",
                                 },
 
                                 countryCode: {
@@ -357,6 +419,7 @@ export const ResponseSchema = {
 
         400: {
             type: "object",
+            additionalProperties: false,
             required: ["success", "message"],
             properties: {
                 success: { type: "boolean", example: false },
@@ -370,6 +433,7 @@ export const ResponseSchema = {
 
         403: {
             type: "object",
+            additionalProperties: false,
             required: ["success", "message"],
             properties: {
                 success: { type: "boolean", example: false },
@@ -383,6 +447,7 @@ export const ResponseSchema = {
 
         404: {
             type: "object",
+            additionalProperties: false,
             required: ["success", "message"],
             properties: {
                 success: { type: "boolean", example: false },
@@ -395,6 +460,7 @@ export const ResponseSchema = {
 
         409: {
             type: "object",
+            additionalProperties: false,
             required: ["success", "message"],
             properties: {
                 success: { type: "boolean", example: false },
@@ -408,6 +474,7 @@ export const ResponseSchema = {
 
         500: {
             type: "object",
+            additionalProperties: false,
             required: ["success", "message"],
             properties: {
                 success: { type: "boolean", example: false },

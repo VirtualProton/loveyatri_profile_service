@@ -4,25 +4,63 @@ import { getOwnerProfileService, OwnerProfileService, UpdateOwnerProfileService,
 import { AppError } from "../../utils/appError.js";
 
 export const OwnerProfileController = async (
-    req: FastifyRequest,
+    req: OwnerProfileRequest,
     reply: FastifyReply
 ) => {
-    const { adminId, photoUrl, phone, preferredLanguage, shortBio } = req.body as OwnerProfileRequest["body"];
     try {
-        // Profile update logic goes here
-        const createProfile = await OwnerProfileService({ adminId, photoUrl, phone, preferredLanguage, shortBio: shortBio ?? null });
+        const { adminId, photoUrl, preferredLanguage, shortBio } = req.body;
+
+        // 🔐 Prefer header for phone verification token
+        // e.g. "x-phone-verification-token: <jwt>"
+        const headerToken = req.headers["x-phone-verification-token"];
+
+        const phoneVerificationToken =
+            (typeof headerToken === "string" ? headerToken : undefined) ||
+            // Optional: allow from body too if you want
+            (req.body as any).phoneVerificationToken;
+
+        const profile = await OwnerProfileService({
+            adminId,
+            photoUrl,
+            preferredLanguage,
+            shortBio: shortBio ?? null,
+            phoneVerificationToken,
+        });
+
         return reply.code(200).send({
             success: true,
-            message: "Owner profile updated successfully",
-            profile: createProfile
+            message: "Owner profile updated successfully.",
+            data: profile,
         });
     } catch (err: any) {
-        return reply.status(err.statusCode || 500).send({
+        // Known, intentional errors from our code
+        if (err instanceof AppError) {
+            return reply.status(err.statusCode).send({
+                success: false,
+                message: err.message,
+            });
+        }
+
+        // Fastify / validation errors (if schema is attached, you may not reach here)
+        if (err?.validation) {
+            // This is how Fastify exposes validation issues when not using global handler
+            return reply.status(400).send({
+                success: false,
+                message: "Invalid request payload.",
+                // optional: expose details in dev only
+                // details: err.validation
+            });
+        }
+
+        // Log unexpected errors for debugging (without leaking to client)
+        req.log?.error(err, "Unexpected error in OwnerProfileController");
+
+        return reply.status(500).send({
             success: false,
-            message: err.message,
+            message: "Something went wrong while updating owner profile.",
         });
     }
-}
+};
 
 
 export const UpdateOwnerProfileController = async (
@@ -30,38 +68,43 @@ export const UpdateOwnerProfileController = async (
     reply: FastifyReply
 ) => {
     const data = req.body as OwnerProfileUpdateRequest["body"];
+
     try {
-        const { owner, emailChangeLink, phoneOtpSent } =
+        const { owner, emailChangeLink, phoneChanged } =
             await UpdateOwnerProfileService(data);
 
+        // 🔹 Case 1: Email change requested → verification link sent
         if (emailChangeLink) {
             return reply.status(200).send({
                 success: true,
-                message: "Email change verification link sent to new email address",
+                message:
+                    "Email change verification link sent to the new email address",
                 emailVerificationRequired: true,
                 emailChangeLink,
-                phoneOtpSent: !!phoneOtpSent,
+                phoneChanged: !!phoneChanged,
                 owner,
             });
         }
 
-        if (phoneOtpSent) {
+        // 🔹 Case 2: Phone changed via phoneVerificationToken
+        if (phoneChanged) {
             return reply.status(200).send({
                 success: true,
-                message: "OTP sent to new phone number",
+                message: "Owner phone number updated successfully",
                 emailVerificationRequired: false,
                 emailChangeLink: null,
-                phoneOtpSent: true,
+                phoneChanged: true,
                 owner,
             });
         }
 
+        // 🔹 Case 3: Other profile fields updated (no email/phone change)
         return reply.status(200).send({
             success: true,
             message: "Owner profile updated successfully",
             emailVerificationRequired: false,
             emailChangeLink: null,
-            phoneOtpSent: false,
+            phoneChanged: false,
             owner,
         });
     } catch (err: any) {
@@ -89,7 +132,7 @@ export const UpdateOwnerProfileController = async (
             message,
         });
     }
-}
+};
 
 export const verifyEmailChangeController = async (
     req: FastifyRequest,

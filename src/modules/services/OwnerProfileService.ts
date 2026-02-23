@@ -1,23 +1,133 @@
 import { env } from "../../config/env.js";
+import { Prisma } from "../../generated/prisma/client.js";
 // import { OwnerProfileUpdateRequest } from "../../types.js";
 import { AppError } from "../../utils/appError.js";
 import { emailChangeToken } from "../../utils/generateEmailVerificationToken.js";
 import { prisma } from "../../utils/prisma.js";
 import jwt from "jsonwebtoken";
 
+const PHONE_VERIFICATION_SECRET = env.JWT_SECRET; // You can use a separate secret if you want, but for simplicity we're using the same env variable here
+
+type PhoneVerificationTokenPayload = {
+    isVerified: boolean;
+    phone: string; // normalized phone with country code, e.g. "919876543210"
+};
+
+/**
+ * 🔐 Verify Phone Verification Token
+ * - Ensures env secret exists
+ * - Validates JWT
+ * - Ensures payload contains verified phone
+ */
+function verifyPhoneVerificationToken(
+    token: string
+): PhoneVerificationTokenPayload {
+    if (!PHONE_VERIFICATION_SECRET) {
+        // Misconfiguration on server – don't leak details to client
+        throw new AppError(
+            500,
+            "Phone verification is temporarily unavailable. Please try again later."
+        );
+    }
+
+    try {
+        const decoded = jwt.verify(
+            token,
+            PHONE_VERIFICATION_SECRET
+        ) as PhoneVerificationTokenPayload | null;
+
+        if (!decoded || typeof decoded !== "object") {
+            throw new AppError(
+                400,
+                "Phone number is not verified - Please verify first before update."
+            );
+        }
+
+        const { phone, isVerified } = decoded;
+
+        if (!phone || !isVerified) {
+            throw new AppError(
+                400,
+                "Phone number is not verified - Please verify first before update."
+            );
+        }
+
+        return { phone, isVerified };
+    } catch (err: any) {
+        // JWT library errors
+        if (err instanceof AppError) {
+            // Already a clean AppError from above
+            throw err;
+        }
+
+        if (err.name === "TokenExpiredError") {
+            throw new AppError(
+                401,
+                "Phone verification token has expired. Please verify your phone again."
+            );
+        }
+
+        if (err.name === "JsonWebTokenError" || err.name === "NotBeforeError") {
+            throw new AppError(
+                400,
+                "Phone number is not verified - Please verify first before update."
+            );
+        }
+
+        // Fallback for any other unexpected error during verification
+        throw new AppError(
+            400,
+            "Phone number is not verified - Please verify first before update."
+        );
+    }
+}
+
 
 
 export const OwnerProfileService = async (data: {
     adminId: string;
     photoUrl: string;
-    phone: string;
     preferredLanguage: string;
     shortBio?: string | null;
+
+    // 🔐 Phone verification token (from controller)
+    phoneVerificationToken?: string;
 }) => {
     try {
+        const {
+            adminId,
+            photoUrl,
+            preferredLanguage,
+            shortBio,
+            phoneVerificationToken,
+        } = data;
+
+        // Basic guards (defensive, even if controller/schema already validate)
+        if (!adminId) {
+            throw new AppError(400, "Admin ID is required.");
+        }
+        if (!photoUrl) {
+            throw new AppError(400, "Photo URL is required.");
+        }
+        if (!preferredLanguage) {
+            throw new AppError(400, "Preferred language is required.");
+        }
+
+        // ✅ Token required
+        if (!phoneVerificationToken) {
+            throw new AppError(
+                400,
+                "Phone number is not verified - Please verify first before update."
+            );
+        }
+
+        // ✅ Decode & validate token (throws AppError on any issue)
+        const { phone } = verifyPhoneVerificationToken(phoneVerificationToken);
+
         return await prisma.$transaction(async (tx) => {
+            // Ensure owner/admin exists
             const existingOwner = await tx.admin.findUnique({
-                where: { id: data.adminId },
+                where: { id: adminId },
                 select: { isProfileComplete: true },
             });
 
@@ -29,8 +139,9 @@ export const OwnerProfileService = async (data: {
                 throw new AppError(409, "Profile already completed");
             }
 
+            // ✅ Ensure phone not already used (app-level check)
             const phoneExists = await tx.adminProfile.findUnique({
-                where: { phone: data.phone },
+                where: { phone },
                 select: { id: true },
             });
 
@@ -38,20 +149,25 @@ export const OwnerProfileService = async (data: {
                 throw new AppError(409, "Phone number already in use");
             }
 
+            // Create profile
             const profile = await tx.adminProfile.create({
                 data: {
-                    ...data,
-                    preferredLanguage: data.preferredLanguage as any
+                    adminId,
+                    phone,
+                    photoUrl,
+                    preferredLanguage: preferredLanguage as any,
+                    shortBio: shortBio ?? null,
                 },
                 include: {
                     admin: {
-                        select: { fullName: true, email: true }
-                    }
+                        select: { fullName: true, email: true },
+                    },
                 },
             });
 
+            // Mark admin as active + profile complete
             await tx.admin.update({
-                where: { id: data.adminId },
+                where: { id: adminId },
                 data: {
                     isProfileComplete: true,
                     isActive: true,
@@ -61,10 +177,35 @@ export const OwnerProfileService = async (data: {
             return profile;
         });
     } catch (err: any) {
-        if (err instanceof AppError) throw err;
+        // Let known AppErrors bubble up
+        if (err instanceof AppError) {
+            throw err;
+        }
+
+        // Handle known Prisma errors (e.g. race condition on unique phone)
+        if (err instanceof Prisma.PrismaClientKnownRequestError) {
+            if (err.code === "P2002") {
+                // Unique constraint failed
+                const target = Array.isArray(err.meta?.target)
+                    ? (err.meta?.target as string[]).join(",")
+                    : String(err.meta?.target ?? "");
+
+                if (target.includes("phone")) {
+                    throw new AppError(409, "Phone number already in use");
+                }
+            }
+
+            // Generic DB error
+            throw new AppError(
+                500,
+                "Database error while creating owner profile."
+            );
+        }
+
+        // Fallback: unknown/unexpected error
         throw new AppError(
             500,
-            "Owner profile creation failed" + err.message
+            "Owner profile creation failed: " + (err?.message || "Unknown error")
         );
     }
 };
@@ -75,21 +216,25 @@ type OwnerProfileUpdateData = {
     fullName?: string;
     email?: string;
     photoUrl?: string;
-    phone?: string;
     preferredLanguage?: string;
     shortBio?: string | null;
+
+    // 🔐 Phone verification token (from OTP verification step)
+    phoneVerificationToken?: string;
 };
 
-export const UpdateOwnerProfileService = async (data: OwnerProfileUpdateData) => {
+export const UpdateOwnerProfileService = async (
+    data: OwnerProfileUpdateData
+) => {
     try {
         const {
             adminId,
             fullName,
             email,
             photoUrl,
-            phone,
             preferredLanguage,
             shortBio,
+            phoneVerificationToken,
         } = data;
 
         if (!adminId) {
@@ -113,8 +258,19 @@ export const UpdateOwnerProfileService = async (data: OwnerProfileUpdateData) =>
             // 2. Decide what is actually changing
             const wantsEmailChange =
                 email !== undefined && email !== currentEmail;
-            const wantsPhoneChange =
-                phone !== undefined && phone !== currentPhone;
+
+            // 🔐 Phone is no longer taken from body, but from phoneVerificationToken
+            let decodedPhone: string | null = null;
+            let wantsPhoneChange = false;
+
+            if (phoneVerificationToken) {
+                const { phone } =
+                    verifyPhoneVerificationToken(phoneVerificationToken);
+
+                decodedPhone = phone;
+                // Only treat as "change" if different from current
+                wantsPhoneChange = phone !== currentPhone;
+            }
 
             // 3. Disallow changing email and phone together
             if (wantsEmailChange && wantsPhoneChange) {
@@ -145,18 +301,25 @@ export const UpdateOwnerProfileService = async (data: OwnerProfileUpdateData) =>
                 adminProfileUpdateData.shortBio = shortBio;
             }
 
-            // 6. PHONE change + OTP
-            let phoneOtpSent = false;
+            // 6. PHONE change via token
+            let phoneChanged = false;
 
             if (wantsPhoneChange) {
-                if (!phone) {
-                    throw new AppError(400, "Phone number is required");
+                if (!decodedPhone) {
+                    // This should never happen because verifyPhoneVerificationToken
+                    // enforces a valid & verified phone.
+                    throw new AppError(
+                        400,
+                        "Phone number is not verified - Please verify first before update."
+                    );
                 }
 
-                // Check phone uniqueness (other admins)
+                const newPhone = decodedPhone;
+
+                // Check phone uniqueness (other admins only)
                 const phoneExists = await tx.adminProfile.findFirst({
                     where: {
-                        phone,
+                        phone: newPhone,
                         NOT: { adminId },
                     },
                     select: { id: true },
@@ -169,14 +332,11 @@ export const UpdateOwnerProfileService = async (data: OwnerProfileUpdateData) =>
                     );
                 }
 
-                adminProfileUpdateData.phone = phone;
-
-                // 🔔 Send OTP to new phone (hook)
-                // await sendOwnerPhoneChangeOtp({ adminId, phone });
-                phoneOtpSent = true;
+                adminProfileUpdateData.phone = newPhone;
+                phoneChanged = true;
             }
 
-            // 7. EMAIL change with token versioning
+            // 7. EMAIL change with token versioning (no direct email update yet)
             let emailChangeLink: string | null = null;
 
             if (wantsEmailChange) {
@@ -221,7 +381,7 @@ export const UpdateOwnerProfileService = async (data: OwnerProfileUpdateData) =>
                 });
 
                 const token = emailChangeToken({
-                    ownerId: adminId,                        // keep "ownerId" field if that's what your verify code expects
+                    ownerId: adminId, // keep "ownerId" if verify flow expects this
                     newEmail: email,
                     oldEmail: updatedForVersion.email,
                     version: updatedForVersion.emailVerifyVersion,
@@ -291,7 +451,7 @@ export const UpdateOwnerProfileService = async (data: OwnerProfileUpdateData) =>
             return {
                 owner: updatedAdmin,
                 emailChangeLink, // null if email not changed
-                phoneOtpSent,    // true if phone changed (and OTP should be sent)
+                phoneChanged,    // true if phone updated from token
             };
         });
     } catch (err: any) {
@@ -301,7 +461,8 @@ export const UpdateOwnerProfileService = async (data: OwnerProfileUpdateData) =>
 
         // Prisma unique constraint handling (optional but nice)
         if (err?.code === "P2002") {
-            const target = (err.meta && (err.meta.target as string[] | undefined)) || [];
+            const target =
+                (err.meta && (err.meta.target as string[] | undefined)) || [];
             if (target.some((t: any) => t.toLowerCase().includes("phone"))) {
                 throw new AppError(409, "Phone number already in use");
             }

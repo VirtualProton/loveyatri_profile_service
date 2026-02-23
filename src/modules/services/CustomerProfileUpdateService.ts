@@ -4,261 +4,339 @@ import { env } from "../../config/env.js";
 import { emailChangeToken } from "../../utils/generateEmailVerificationToken.js";
 // import { sendCustomerPhoneChangeOtp } from "../../utils/otp.js"; // TODO: plug your OTP sender
 
-export const CustomerProfileUpdateService = async (data: {
-    customerId: string;
-    fullName?: string;
-    photoUrl?: string;
-    phone?: string;
-    address?: string | null;
-    email?: string;
-}) => {
-    try {
-        const {
-            customerId,
-            fullName,
-            photoUrl,
-            phone,
-            address,
-            email,
-        } = data;
+import jwt from "jsonwebtoken";
+import { Prisma } from "../../generated/prisma/client.js";
 
-        if (!customerId) {
-            throw new AppError(400, "Customer ID is required");
-        }
 
-        return await prisma.$transaction(async (tx) => {
-            // 1. Get current customer and profile
-            const customer = await tx.customer.findUnique({
-                where: { id: customerId },
-                include: { CustomerProfile: true },
-            });
+type PhoneVerificationTokenPayload = {
+  isVerified: boolean;
+  phone: string; // normalized phone with country code, e.g. "919876543210"
+};
 
-            if (!customer) {
-                throw new AppError(404, "Customer not found");
-            }
+const PHONE_VERIFICATION_TOKEN_SECRET = env.JWT_SECRET
 
-            const currentEmail = customer.email;
-            const currentPhone = customer.CustomerProfile?.phone ?? null;
+/**
+ * Decode and validate the phone verification token.
+ * Throws AppError with proper status codes on any problem.
+ */
+function decodePhoneVerificationToken(
+  token: string
+): PhoneVerificationTokenPayload {
+  if (!PHONE_VERIFICATION_TOKEN_SECRET) {
+    throw new AppError(
+      500,
+      "Phone verification is temporarily unavailable. Please try again later."
+    );
+  }
 
-            // 2. Decide what is actually changing
-            const wantsEmailChange =
-                email !== undefined && email !== currentEmail;
-            const wantsPhoneChange =
-                phone !== undefined && phone !== currentPhone;
+  try {
+    const decoded = jwt.verify(
+      token,
+      PHONE_VERIFICATION_TOKEN_SECRET
+    ) as jwt.JwtPayload | string;
 
-            // 3. Disallow changing email and phone together
-            if (wantsEmailChange && wantsPhoneChange) {
-                throw new AppError(
-                    400,
-                    "You can update either email or phone at a time, not both"
-                );
-            }
-
-            const customerUpdateData: Record<string, any> = {};
-            const profileUpdateData: Record<string, any> = {};
-
-            // 4. fullName → Customer + CustomerProfile
-            if (fullName !== undefined) {
-                customerUpdateData.fullName = fullName;
-                profileUpdateData.fullName = fullName;
-            }
-
-            // 5. photoUrl → profile
-            if (photoUrl !== undefined) {
-                profileUpdateData.photoUrl = photoUrl;
-            }
-
-            // 6. address → profile
-            if (address !== undefined) {
-                profileUpdateData.address = address;
-            }
-
-            // 7. Handle PHONE change + OTP
-            let phoneOtpSent = false;
-
-            if (wantsPhoneChange) {
-                if (!phone) {
-                    throw new AppError(400, "Phone number is required");
-                }
-
-                // Check phone uniqueness (other customers)
-                const phoneExists = await tx.customerProfile.findFirst({
-                    where: {
-                        phone,
-                        NOT: { customerId },
-                    },
-                    select: { id: true },
-                });
-
-                if (phoneExists) {
-                    throw new AppError(
-                        409,
-                        "Phone number already in use by another customer"
-                    );
-                }
-
-                profileUpdateData.phone = phone;
-
-                // 🔔 Send OTP to new phone (hook)
-                // await sendCustomerPhoneChangeOtp({ customerId, phone });
-                phoneOtpSent = true;
-            }
-
-            // 8. Handle EMAIL change with versioned token
-            let emailChangeLink: string | null = null;
-
-            if (wantsEmailChange) {
-                if (!email) {
-                    throw new AppError(400, "Email is required");
-                }
-
-                // Check uniqueness in Customer.email / Customer.pendingEmail
-                const emailExistsInCustomer = await tx.customer.findFirst({
-                    where: {
-                        OR: [{ email }, { pendingEmail: email }],
-                        NOT: { id: customerId },
-                    },
-                    select: { id: true },
-                });
-
-                // Check uniqueness in CustomerProfile.email
-                const emailExistsInProfile = await tx.customerProfile.findFirst({
-                    where: {
-                        email,
-                        NOT: { customerId },
-                    },
-                    select: { id: true },
-                });
-
-                if (emailExistsInCustomer || emailExistsInProfile) {
-                    throw new AppError(
-                        409,
-                        "Email already in use by another customer"
-                    );
-                }
-
-                // Only active accounts can change email
-                if (!customer.isActive) {
-                    throw new AppError(
-                        403,
-                        "Cannot update email. Account must be active to change email address"
-                    );
-                }
-
-                // Bump version & get latest email (atomic)
-                const updatedForVersion = await tx.customer.update({
-                    where: { id: customerId },
-                    data: {
-                        emailVerifyVersion: {
-                            increment: 1,
-                        },
-                    },
-                    select: {
-                        id: true,
-                        email: true,
-                        emailVerifyVersion: true,
-                    },
-                });
-
-                const token = emailChangeToken({
-                    customerId: customerId,
-                    newEmail: email,
-                    oldEmail: updatedForVersion.email,
-                    version: updatedForVersion.emailVerifyVersion,
-                });
-
-                emailChangeLink = `${env.APP_URL}/verify-email-change?token=${encodeURIComponent(
-                    token
-                )}`;
-
-                // NOTE:
-                //   We are not updating Customer.email here.
-                //   Your verify-email-change endpoint should:
-                //   - validate token + version
-                //   - apply the new email to Customer + CustomerProfile (if needed).
-            }
-
-            // 9. If nothing is changing at all, bail out early
-            const hasCustomerChanges = Object.keys(customerUpdateData).length > 0;
-            const hasProfileChanges = Object.keys(profileUpdateData).length > 0;
-
-            if (!hasCustomerChanges && !hasProfileChanges && !wantsEmailChange && !wantsPhoneChange) {
-                throw new AppError(400, "No changes provided to update");
-            }
-
-            // 10. Apply updates
-
-            if (hasCustomerChanges) {
-                await tx.customer.update({
-                    where: { id: customerId },
-                    data: customerUpdateData,
-                });
-            }
-
-            if (hasProfileChanges) {
-                if (customer.CustomerProfile) {
-                    await tx.customerProfile.update({
-                        where: { customerId },
-                        data: profileUpdateData,
-                    });
-                } else {
-                    // If profile doesn't exist yet, you can also choose to create instead.
-                    throw new AppError(
-                        404,
-                        "Customer profile not found. Please create profile first."
-                    );
-                }
-            }
-
-            // 11. Fetch updated customer with profile
-            const updatedCustomer = await tx.customer.findUnique({
-                where: { id: customerId },
-                include: { CustomerProfile: true },
-            });
-
-            if (!updatedCustomer) {
-                // Extremely rare, but guards against weird race conditions
-                throw new AppError(
-                    500,
-                    "Customer disappeared during update. Please try again"
-                );
-            }
-
-            return {
-                customer: updatedCustomer,
-                emailChangeLink, // null if email not changed
-                phoneOtpSent,    // true if phone changed (and OTP should have been sent)
-            };
-        });
-    } catch (err: any) {
-        // Known, intentional errors
-        if (err instanceof AppError) {
-            throw err;
-        }
-
-        // Handle known Prisma unique-constraint errors more nicely (optional)
-        if (err?.code === "P2002") {
-            // err.meta?.target often contains the unique index name
-            const target = (err.meta && (err.meta.target as string[] | undefined)) || [];
-            if (target.some((t:any) => t.toLowerCase().includes("phone"))) {
-                throw new AppError(409, "Phone number already in use");
-            }
-            if (target.some((t:any) => t.toLowerCase().includes("email"))) {
-                throw new AppError(409, "Email already in use");
-            }
-
-            // generic unique violation
-            throw new AppError(409, "Unique constraint violation");
-        }
-
-        console.error("CustomerProfileUpdateService error:", err);
-
-        // Fallback: unexpected server error
-        throw new AppError(
-            500,
-            "Customer profile update failed: " + (err?.message || "Unexpected error")
-        );
+    if (!decoded || typeof decoded === "string") {
+      throw new AppError(400, "Invalid phone verification token.");
     }
+
+    const { isVerified, phone } = decoded as Partial<PhoneVerificationTokenPayload>;
+
+    if (typeof isVerified !== "boolean" || typeof phone !== "string") {
+      throw new AppError(400, "Invalid phone verification token payload.");
+    }
+
+    return {
+      isVerified,
+      phone: phone.trim(),
+    };
+  } catch (err: any) {
+    if (err?.name === "TokenExpiredError") {
+      throw new AppError(
+        400,
+        "Phone verification token has expired. Please verify your phone number again."
+      );
+    }
+
+    if (err instanceof AppError) {
+      throw err;
+    }
+
+    throw new AppError(400, "Invalid phone verification token.");
+  }
+}
+
+export const CustomerProfileUpdateService = async (data: {
+  customerId: string;
+  fullName?: string;
+  photoUrl?: string;
+  address?: string | null;
+  email?: string;
+  verificationToken?: string; // optional – used only when changing phone
+}) => {
+  try {
+    const { customerId, fullName, photoUrl, address, email, verificationToken } =
+      data;
+
+    if (!customerId) {
+      throw new AppError(400, "Customer ID is required");
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      // 1. Get current customer and profile
+      const customer = await tx.customer.findUnique({
+        where: { id: customerId },
+        include: { CustomerProfile: true },
+      });
+
+      if (!customer) {
+        throw new AppError(404, "Customer not found");
+      }
+
+      const currentEmail = customer.email;
+      const currentPhone = customer.CustomerProfile?.phone ?? null;
+
+      // 2. Decide what is actually changing
+
+      // Email change: only if email is provided and different
+      const wantsEmailChange =
+        email !== undefined && email !== currentEmail;
+
+      // Phone change: via verificationToken
+      let wantsPhoneChange = false;
+      let newPhoneFromToken: string | null = null;
+
+      if (verificationToken) {
+        const { isVerified, phone } = decodePhoneVerificationToken(
+          verificationToken
+        );
+
+        if (!isVerified) {
+          throw new AppError(
+            400,
+            "Phone number not verified. Verification required."
+          );
+        }
+
+        newPhoneFromToken = phone.trim();
+
+        if (!customer.CustomerProfile) {
+          throw new AppError(
+            404,
+            "Customer profile not found. Please create profile first."
+          );
+        }
+
+        // Only consider it a change if different from current
+        if (!currentPhone || newPhoneFromToken !== currentPhone) {
+          wantsPhoneChange = true;
+        }
+      }
+
+      // 3. Disallow changing email and phone together
+      if (wantsEmailChange && wantsPhoneChange) {
+        throw new AppError(
+          400,
+          "You can update either email or phone at a time, not both."
+        );
+      }
+
+      const customerUpdateData: Record<string, any> = {};
+      const profileUpdateData: Record<string, any> = {};
+
+      // 4. fullName → Customer + CustomerProfile
+      if (fullName !== undefined) {
+        customerUpdateData.fullName = fullName;
+        profileUpdateData.fullName = fullName;
+      }
+
+      // 5. photoUrl → profile
+      if (photoUrl !== undefined) {
+        profileUpdateData.photoUrl = photoUrl;
+      }
+
+      // 6. address → profile
+      if (address !== undefined) {
+        profileUpdateData.address = address;
+      }
+
+      // 7. Handle PHONE change (no OTP send here; token already verified)
+      let phoneChanged = false;
+
+      if (wantsPhoneChange && newPhoneFromToken) {
+        // Check phone uniqueness across other profiles
+        const phoneExists = await tx.customerProfile.findFirst({
+          where: {
+            phone: newPhoneFromToken,
+            NOT: { customerId },
+          },
+          select: { id: true },
+        });
+
+        if (phoneExists) {
+          throw new AppError(
+            409,
+            "Phone number already in use by another customer"
+          );
+        }
+
+        profileUpdateData.phone = newPhoneFromToken;
+        phoneChanged = true;
+      }
+
+      // 8. Handle EMAIL change with versioned token
+      let emailChangeLink: string | null = null;
+
+      if (wantsEmailChange) {
+        if (!email) {
+          throw new AppError(400, "Email is required");
+        }
+
+        // Check uniqueness in Customer.email / Customer.pendingEmail
+        const emailExistsInCustomer = await tx.customer.findFirst({
+          where: {
+            OR: [{ email }, { pendingEmail: email }],
+            NOT: { id: customerId },
+          },
+          select: { id: true },
+        });
+
+        if (emailExistsInCustomer) {
+          throw new AppError(
+            409,
+            "Email already in use by another customer"
+          );
+        }
+
+        // Only active accounts can change email
+        if (!customer.isActive) {
+          throw new AppError(
+            403,
+            "Cannot update email. Account must be active to change email address"
+          );
+        }
+
+        // Bump version atomically
+        const updatedForVersion = await tx.customer.update({
+          where: { id: customerId },
+          data: {
+            emailVerifyVersion: {
+              increment: 1,
+            },
+          },
+          select: {
+            id: true,
+            email: true,
+            emailVerifyVersion: true,
+          },
+        });
+
+        const token = emailChangeToken({
+          customerId,
+          newEmail: email,
+          oldEmail: updatedForVersion.email,
+          version: updatedForVersion.emailVerifyVersion,
+        });
+
+        emailChangeLink = `${env.APP_URL}/verify-email-change?token=${encodeURIComponent(
+          token
+        )}`;
+
+        // NOTE:
+        // - We are NOT updating Customer.email here.
+        // - Your verify-email-change endpoint should:
+        //   - validate token + version
+        //   - update Customer.email (and maybe Customer.pendingEmail).
+      }
+
+      // 9. If nothing is changing at all, bail out early
+      const hasCustomerChanges = Object.keys(customerUpdateData).length > 0;
+      const hasProfileChanges = Object.keys(profileUpdateData).length > 0;
+
+      if (
+        !hasCustomerChanges &&
+        !hasProfileChanges &&
+        !wantsEmailChange &&
+        !wantsPhoneChange
+      ) {
+        throw new AppError(400, "No changes provided to update");
+      }
+
+      // 10. Apply updates
+
+      if (hasCustomerChanges) {
+        await tx.customer.update({
+          where: { id: customerId },
+          data: customerUpdateData,
+        });
+      }
+
+      if (hasProfileChanges) {
+        if (customer.CustomerProfile) {
+          await tx.customerProfile.update({
+            where: { customerId },
+            data: profileUpdateData,
+          });
+        } else {
+          throw new AppError(
+            404,
+            "Customer profile not found. Please create profile first."
+          );
+        }
+      }
+
+      // 11. Fetch updated customer with profile
+      const updatedCustomer = await tx.customer.findUnique({
+        where: { id: customerId },
+        include: { CustomerProfile: true },
+      });
+
+      if (!updatedCustomer) {
+        throw new AppError(
+          500,
+          "Customer disappeared during update. Please try again"
+        );
+      }
+
+      return {
+        customer: updatedCustomer,
+        emailChangeLink, // null if email not changed
+        phoneChanged,    // true if phone changed via verificationToken
+      };
+    });
+  } catch (err: any) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      if (err.code === "P2002") {
+        const target = (err.meta?.target ?? []) as string[] | string;
+        const targets = Array.isArray(target) ? target : [target];
+
+        if (targets.some((t) => t.toLowerCase().includes("phone"))) {
+          throw new AppError(409, "Phone number already in use");
+        }
+
+        if (targets.some((t) => t.toLowerCase().includes("email"))) {
+          throw new AppError(409, "Email already in use");
+        }
+
+        throw new AppError(409, "Unique constraint violation");
+      }
+
+      throw new AppError(
+        500,
+        "Database error while updating customer profile."
+      );
+    }
+
+    console.error("CustomerProfileUpdateService error:", err);
+
+    throw new AppError(
+      500,
+      "Customer profile update failed: " + (err?.message || "Unexpected error")
+    );
+  }
 };
 
 
@@ -334,15 +412,7 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
         select: { id: true },
       });
 
-      const emailExistsInProfile = await tx.customerProfile.findFirst({
-        where: {
-          email: newEmail,
-          NOT: { customerId },
-        },
-        select: { id: true },
-      });
-
-      if (emailExistsInCustomer || emailExistsInProfile) {
+      if (emailExistsInCustomer) {
         throw new AppError(
           409,
           "Email already in use by another customer. Please use a different email"
@@ -362,15 +432,6 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
         include: { CustomerProfile: true },
       });
 
-      // Optionally also sync profile.email to new email
-      if (updatedCustomer.CustomerProfile) {
-        await tx.customerProfile.update({
-          where: { customerId },
-          data: {
-            email: newEmail,
-          },
-        });
-      }
 
       // Re-fetch to return fully consistent data
       const finalCustomer = await tx.customer.findUnique({
