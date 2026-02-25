@@ -17,26 +17,45 @@ model TokenBlacklist {
 }
 
 model Admin {
-  id                                    String                     @id @default(uuid())
-  role                                  AdminRole                  @default(ADMIN)
-  fullName                              String
-  email                                 String                     @unique
-  passwordHash                          String
-  permissions                           Json?
-  isActive                              Boolean                    @default(false)
-  isProfileComplete                     Boolean                    @default(false)
-  createdAt                             DateTime                   @default(now())
-  updatedAt                             DateTime                   @updatedAt
-  resetPasswordVersion                  Int                        @default(0)
-  emailVerifyVersion                    Int                        @default(0)
-  profile                               AdminProfile?              @relation("AdminProfile")
-  Booking                               Booking[]
-  BookingPayment                        BookingPayment[]
-  Coupon_Coupon_adminIdToAdmin          Coupon[]                   @relation("Coupon_adminIdToAdmin")
-  Coupon_Coupon_createdByAdminIdToAdmin Coupon[]                   @relation("Coupon_createdByAdminIdToAdmin")
-  PlatformCommissionConfig              PlatformCommissionConfig[]
-  properties                            Property[]
-  staff                                 Staff[]                    @relation("AdminStaff")
+  id                                                    String                     @id @default(uuid())
+  role                                                  AdminRole                  @default(ADMIN)
+  fullName                                              String
+  email                                                 String                     @unique
+  passwordHash                                          String
+  permissions                                           Json?
+  isActive                                              Boolean                    @default(false)
+  isProfileComplete                                     Boolean                    @default(false)
+  createdAt                                             DateTime                   @default(now())
+  updatedAt                                             DateTime                   @updatedAt
+  resetPasswordVersion                                  Int                        @default(0)
+  emailVerifyVersion                                    Int                        @default(0)
+  profile                                               AdminProfile?              @relation("AdminProfile")
+  AdminSettlementLedger                                 AdminSettlementLedger[]
+  AdminSuperAdminTransfer                               AdminSuperAdminTransfer[]
+  BlogPost                                              BlogPost[]
+  Booking                                               Booking[]
+  Booking_Booking_createdByAdminIdToAdmin               Booking[]                  @relation("Booking_createdByAdminIdToAdmin")
+  BookingPayment                                        BookingPayment[]
+  CmsPage_CmsPage_createdByAdminIdToAdmin               CmsPage[]                  @relation("CmsPage_createdByAdminIdToAdmin")
+  CmsPage_CmsPage_deletedByAdminIdToAdmin               CmsPage[]                  @relation("CmsPage_deletedByAdminIdToAdmin")
+  CmsPage_CmsPage_updatedByAdminIdToAdmin               CmsPage[]                  @relation("CmsPage_updatedByAdminIdToAdmin")
+  Coupon_Coupon_adminIdToAdmin                          Coupon[]                   @relation("Coupon_adminIdToAdmin")
+  Coupon_Coupon_createdByAdminIdToAdmin                 Coupon[]                   @relation("Coupon_createdByAdminIdToAdmin")
+  Faq_Faq_createdByAdminIdToAdmin                       Faq[]                      @relation("Faq_createdByAdminIdToAdmin")
+  Faq_Faq_deletedByAdminIdToAdmin                       Faq[]                      @relation("Faq_deletedByAdminIdToAdmin")
+  Faq_Faq_updatedByAdminIdToAdmin                       Faq[]                      @relation("Faq_updatedByAdminIdToAdmin")
+  GstSlab_GstSlab_createdByAdminIdToAdmin               GstSlab[]                  @relation("GstSlab_createdByAdminIdToAdmin")
+  GstSlab_GstSlab_deletedByAdminIdToAdmin               GstSlab[]                  @relation("GstSlab_deletedByAdminIdToAdmin")
+  GstSlab_GstSlab_updatedByAdminIdToAdmin               GstSlab[]                  @relation("GstSlab_updatedByAdminIdToAdmin")
+  HomePageBanner_HomePageBanner_createdByAdminIdToAdmin HomePageBanner[]           @relation("HomePageBanner_createdByAdminIdToAdmin")
+  HomePageBanner_HomePageBanner_deletedByAdminIdToAdmin HomePageBanner[]           @relation("HomePageBanner_deletedByAdminIdToAdmin")
+  HomePageBanner_HomePageBanner_updatedByAdminIdToAdmin HomePageBanner[]           @relation("HomePageBanner_updatedByAdminIdToAdmin")
+  InventoryBlock                                        InventoryBlock[]
+  PlatformCommissionConfig                              PlatformCommissionConfig[]
+  properties                                            Property[]
+  RefundSettlement                                      RefundSettlement[]
+  RefundSettlementPayment                               RefundSettlementPayment[]
+  staff                                                 Staff[]                    @relation("AdminStaff")
 }
 
 model AdminProfile {
@@ -44,13 +63,31 @@ model AdminProfile {
   adminId                   String            @unique
   photoUrl                  String
   phone                     String            @unique
-  countryCode               String?           @default("+91")
+  countryCode               String           @default("+91")
   preferredLanguage         PreferredLanguage @default(EN)
   shortBio                  String?           @db.Text
   createdAt                 DateTime          @default(now())
   updatedAt                 DateTime          @updatedAt
   commissionPercentOverride Float?
   admin                     Admin             @relation("AdminProfile", fields: [adminId], references: [id])
+
+  // 🔽 GST (Regular only)
+
+  isGstRegistered Boolean @default(false)
+
+  /// 15-character GSTIN
+  gstNumber String? @unique
+
+  /// Legal name as per GST certificate (invoice must use this)
+  gstLegalName String?
+
+  /// 2-digit state code (needed for CGST/SGST vs IGST logic)
+  gstStateCode String?
+
+  /// Billing address shown on tax invoice
+  gstBillingAddress String? @db.Text
+
+  pincode String?
 }
 
 model Staff {
@@ -69,45 +106,47 @@ model Staff {
 }
 
 model Property {
-  id                        String                @id @default(uuid())
+  id                        String                  @id @default(uuid())
   adminId                   String
   type                      PropertyType
-  status                    ListingStatus         @default(DRAFT)
+  status                    ListingStatus           @default(DRAFT)
   name                      String
   city                      String
   state                     String
-  country                   country               @default(India)
+  country                   country                 @default(India)
   addressLine1              String
   addressLine2              String?
   pincode                   String
   latitude                  Float?
   longitude                 Float?
-  description               String?               @db.Text
-  createdAt                 DateTime              @default(now())
-  updatedAt                 DateTime              @updatedAt
+  description               String?                 @db.Text
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
   approvedAt                DateTime?
   approvedBy                String?
   rejectedAt                DateTime?
   rejectedBy                String?
-  reviewNote                String?               @db.Text
+  reviewNote                String?                 @db.Text
   archivedAt                DateTime?
   archivedBy                String?
-  avgRating                 Float                 @default(0)
-  ratingCount               Int                   @default(0)
+  avgRating                 Float                   @default(0)
+  ratingCount               Int                     @default(0)
   commissionPercentOverride Float?
-  isSponsored               Boolean               @default(false)
+  isSponsored               Boolean                 @default(false)
   sponsoredEndAt            DateTime?
-  sponsoredPriority         Int                   @default(0)
+  sponsoredPriority         Int                     @default(0)
   sponsoredStartAt          DateTime?
-  advancePaymentType        AdvancePaymentType    @default(PERCENTAGE)
-  advancePaymentValue       Float                 @default(0)
-  advanceRefundable         Boolean               @default(true)
+  advancePaymentType        AdvancePaymentType      @default(PERCENTAGE)
+  advancePaymentValue       Float                   @default(0)
+  AdminSettlementLedger     AdminSettlementLedger[]
   Booking                   Booking[]
   BookingPayment            BookingPayment[]
+  BookingRoomAssignment     BookingRoomAssignment[]
   Coupon                    Coupon[]
   customAmenities           CustomAmenity[]
+  InventoryBlock            InventoryBlock[]
   policies                  Policy[]
-  admin                     Admin                 @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  admin                     Admin                   @relation(fields: [adminId], references: [id], onDelete: Cascade)
   amenities                 PropertyAmenity[]
   images                    PropertyImage[]
   refundPolicy              PropertyRefundPolicy?
@@ -124,7 +163,7 @@ model Property {
 }
 
 model Unit {
-  id                      String          @id @default(uuid())
+  id                      String                  @id @default(uuid())
   propertyId              String
   type                    UnitType
   name                    String?
@@ -135,16 +174,18 @@ model Unit {
   /// 💰 Base price per night for up to `maxGuestsAtBasePrice`
   basePrice               Float?
   inventoryCount          Int?
-  createdAt               DateTime        @default(now())
-  updatedAt               DateTime        @updatedAt
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
   /// 💰 Per extra guest charge per night (beyond base, up to max)
   extraGuestPricePerNight Float?
   /// ➕ Optional explicit cap for extra guests (can also be derived)
   maxExtraGuests          Int?
   /// 👥 Guests included in basePrice (no extra charge up to this number)
   maxGuestsAtBasePrice    Int?
+  BookingRoomAssignment   BookingRoomAssignment[]
   bookingUnits            BookingUnit[]
-  property                Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  InventoryBlock          InventoryBlock[]
+  property                Property                @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   images                  UnitImage[]
   UnitPriceRule           UnitPriceRule[]
   UnitRoom                UnitRoom[]
@@ -179,7 +220,13 @@ model Amenity {
   id         String            @id @default(uuid())
   name       String            @unique
   iconKey    String?
+  createdAt  DateTime          @default(now())
+  deletedAt  DateTime?
+  isDeleted  Boolean           @default(false)
+  updatedAt  DateTime
   properties PropertyAmenity[]
+
+  @@index([isDeleted])
 }
 
 model PropertyAmenity {
@@ -285,16 +332,15 @@ model Customer {
 }
 
 model CustomerProfile {
-  id         String @id @default(uuid())
-  customerId String @unique
+  id          String   @id @default(uuid())
+  customerId  String   @unique
   photoUrl    String
-  phone       String  @unique
-  countryCode String? @default("+91")
-  address     String? @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  Customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  @@index([customerId])
+  phone       String   @unique
+  countryCode String?  @default("+91")
+  address     String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  Customer    Customer @relation(fields: [customerId], references: [id])
 }
 
 model Coupon {
@@ -387,51 +433,58 @@ model PlatformCommissionConfig {
 }
 
 model Booking {
-  id                   String                      @id
-  code                 String                      @unique
-  propertyId           String
-  adminId              String
-  customerId           String?
-  status               Booking_status              @default(PENDING)
-  channel              Booking_channel             @default(ONLINE)
-  paymentPlan          Booking_paymentPlan         @default(FULL)
-  checkIn              DateTime
-  checkOut             DateTime
-  guestName            String
-  guestEmail           String?
-  guestPhone           String?
-  adultCount           Int                         @default(1)
-  childCount           Int                         @default(0)
-  infantCount          Int                         @default(0)
-  baseAmount           Decimal                     @db.Decimal(10, 2)
-  discountAmount       Decimal                     @default(0.00) @db.Decimal(10, 2)
-  taxAmount            Decimal                     @default(0.00) @db.Decimal(10, 2)
-  totalPayableAmount   Decimal                     @db.Decimal(10, 2)
-  currency             String                      @default("INR")
-  paidAmount           Decimal                     @default(0.00) @db.Decimal(10, 2)
-  dueAmount            Decimal                     @default(0.00) @db.Decimal(10, 2)
-  advancePaymentType   Booking_advancePaymentType?
-  advancePaymentValue  Float?
-  advanceAmount        Decimal?                    @db.Decimal(10, 2)
-  remainingAmount      Decimal?                    @db.Decimal(10, 2)
-  commissionPercent    Float
-  commissionAmount     Decimal                     @db.Decimal(10, 2)
-  netAmountToAdmin     Decimal                     @db.Decimal(10, 2)
-  couponId             String?
-  couponCode           String?
-  couponDiscountAmount Decimal                     @default(0.00) @db.Decimal(10, 2)
-  createdAt            DateTime                    @default(now())
-  updatedAt            DateTime
-  canceledAt           DateTime?
-  cancellationReason   String?                     @db.Text
-  canceledByAdminId    String?
-  canceledByCustomerId String?
-  Admin                Admin                       @relation(fields: [adminId], references: [id])
-  Coupon               Coupon?                     @relation(fields: [couponId], references: [id])
-  Customer             Customer?                   @relation(fields: [customerId], references: [id])
-  Property             Property                    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  BookingPayment       BookingPayment[]
-  BookingUnit          BookingUnit[]
+  id                                    String                      @id
+  code                                  String                      @unique
+  propertyId                            String
+  adminId                               String
+  customerId                            String?
+  status                                Booking_status              @default(PENDING)
+  channel                               Booking_channel             @default(ONLINE)
+  paymentPlan                           Booking_paymentPlan         @default(FULL)
+  checkIn                               DateTime
+  checkOut                              DateTime
+  guestName                             String
+  guestEmail                            String?
+  guestPhone                            String?
+  adultCount                            Int                         @default(1)
+  childCount                            Int                         @default(0)
+  infantCount                           Int                         @default(0)
+  baseAmount                            Decimal                     @db.Decimal(10, 2)
+  discountAmount                        Decimal                     @default(0.00) @db.Decimal(10, 2)
+  taxAmount                             Decimal                     @default(0.00) @db.Decimal(10, 2)
+  totalPayableAmount                    Decimal                     @db.Decimal(10, 2)
+  currency                              String                      @default("INR")
+  paidAmount                            Decimal                     @default(0.00) @db.Decimal(10, 2)
+  dueAmount                             Decimal                     @default(0.00) @db.Decimal(10, 2)
+  advancePaymentType                    Booking_advancePaymentType?
+  advancePaymentValue                   Float?
+  advanceAmount                         Decimal?                    @db.Decimal(10, 2)
+  remainingAmount                       Decimal?                    @db.Decimal(10, 2)
+  commissionPercent                     Float
+  commissionAmount                      Decimal                     @db.Decimal(10, 2)
+  netAmountToAdmin                      Decimal                     @db.Decimal(10, 2)
+  couponId                              String?
+  couponCode                            String?
+  couponDiscountAmount                  Decimal                     @default(0.00) @db.Decimal(10, 2)
+  createdAt                             DateTime                    @default(now())
+  updatedAt                             DateTime
+  canceledAt                            DateTime?
+  cancellationReason                    String?                     @db.Text
+  canceledBy                            Booking_canceledBy?
+  canceledById                          String?
+  createdByAdminId                      String?
+  isAdvancePaid                         Boolean                     @default(false)
+  pendingExpiresAt                      DateTime?
+  AdminSettlementLedger                 AdminSettlementLedger?
+  Admin                                 Admin                       @relation(fields: [adminId], references: [id])
+  Coupon                                Coupon?                     @relation(fields: [couponId], references: [id])
+  Admin_Booking_createdByAdminIdToAdmin Admin?                      @relation("Booking_createdByAdminIdToAdmin", fields: [createdByAdminId], references: [id])
+  Customer                              Customer?                   @relation(fields: [customerId], references: [id])
+  Property                              Property                    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  BookingPayment                        BookingPayment[]
+  BookingRoomAssignment                 BookingRoomAssignment[]
+  BookingUnit                           BookingUnit[]
+  RefundSettlement                      RefundSettlement[]
 
   @@index([adminId])
   @@index([checkIn, checkOut])
@@ -439,56 +492,42 @@ model Booking {
   @@index([customerId])
   @@index([propertyId])
   @@index([status])
+  @@index([createdByAdminId], map: "Booking_createdByAdminId_fkey")
+  @@index([status, pendingExpiresAt])
 }
 
 model BookingPayment {
-  id              String                  @id
-  bookingId       String
-  propertyId      String
-  adminId         String
-  customerId      String?
-  provider        BookingPayment_provider
-  method          BookingPayment_method
-  status          BookingPayment_status   @default(PENDING)
-  amount          Decimal                 @db.Decimal(10, 2)
-  currency        String                  @default("INR")
-  isAdvance       Boolean                 @default(false)
-  isSettlement    Boolean                 @default(false)
-  orderId         String?
-  paymentId       String?
-  referenceCode   String?
-  meta            Json?
-  rawRequestJson  String?                 @db.LongText
-  rawResponseJson String?                 @db.LongText
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime
-  Admin           Admin                   @relation(fields: [adminId], references: [id])
-  Booking         Booking                 @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  Customer        Customer?               @relation(fields: [customerId], references: [id])
-  Property        Property                @relation(fields: [propertyId], references: [id])
-  BookingRefund   BookingRefund[]
+  id               String                  @id
+  bookingId        String
+  propertyId       String
+  adminId          String
+  customerId       String?
+  provider         BookingPayment_provider
+  method           BookingPayment_method
+  status           BookingPayment_status   @default(PENDING)
+  amount           Decimal                 @db.Decimal(10, 2)
+  currency         String                  @default("INR")
+  isAdvance        Boolean                 @default(false)
+  isSettlement     Boolean                 @default(false)
+  orderId          String?                 @unique
+  paymentId        String?                 @unique
+  referenceCode    String?
+  meta             Json?
+  rawRequestJson   String?                 @db.LongText
+  rawResponseJson  String?                 @db.LongText
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime
+  Admin            Admin                   @relation(fields: [adminId], references: [id])
+  Booking          Booking                 @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  Customer         Customer?               @relation(fields: [customerId], references: [id])
+  Property         Property                @relation(fields: [propertyId], references: [id])
+  RefundSettlement RefundSettlement[]
 
   @@index([adminId])
   @@index([bookingId])
   @@index([customerId])
   @@index([propertyId])
   @@index([status])
-}
-
-model BookingRefund {
-  id               String               @id
-  bookingPaymentId String
-  amount           Decimal              @db.Decimal(10, 2)
-  status           BookingRefund_status @default(PENDING)
-  reason           String?              @db.Text
-  refundId         String?
-  rawRequestJson   String?              @db.LongText
-  rawResponseJson  String?              @db.LongText
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime
-  BookingPayment   BookingPayment       @relation(fields: [bookingPaymentId], references: [id], onDelete: Cascade)
-
-  @@index([bookingPaymentId])
 }
 
 model BookingUnit {
@@ -537,23 +576,374 @@ model PropertyRefundPolicyLap {
 }
 
 model UnitRoom {
-  id         String    @id @default(uuid())
-  unitId     String
-  propertyId String
-  roomNumber String
-  floor      String?
-  notes      String?   @db.Text
-  isDeleted  Boolean   @default(false)
-  deletedAt  DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  Property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  Unit     Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  id                    String                  @id @default(uuid())
+  unitId                String
+  propertyId            String
+  roomNumber            String
+  floor                 String?
+  notes                 String?                 @db.Text
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  deletedAt             DateTime?
+  isDeleted             Boolean                 @default(false)
+  BookingRoomAssignment BookingRoomAssignment[]
+  InventoryBlock        InventoryBlock[]
+  Property              Property                @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  Unit                  Unit                    @relation(fields: [unitId], references: [id], onDelete: Cascade)
 
   @@unique([propertyId, roomNumber])
   @@index([propertyId])
   @@index([unitId])
+}
+
+model AdminSettlementLedger {
+  id                            String                                 @id
+  bookingId                     String                                 @unique
+  propertyId                    String
+  adminId                       String
+  bookingChannel                AdminSettlementLedger_bookingChannel
+  eligibleAt                    DateTime
+  eligibleStatus                AdminSettlementLedger_eligibleStatus
+  totalAmount                   Decimal                                @db.Decimal(10, 2)
+  baseAmount                    Decimal                                @db.Decimal(10, 2)
+  taxAmount                     Decimal                                @db.Decimal(10, 2)
+  commissionPercent             Float
+  commissionAmount              Decimal                                @db.Decimal(10, 2)
+  netToAdminTarget              Decimal                                @db.Decimal(10, 2)
+  superCollected                Decimal                                @db.Decimal(10, 2)
+  adminCollected                Decimal                                @db.Decimal(10, 2)
+  superRefunded                 Decimal                                @db.Decimal(10, 2)
+  adminRefunded                 Decimal                                @db.Decimal(10, 2)
+  superNetCollected             Decimal                                @db.Decimal(10, 2)
+  adminNetCollected             Decimal                                @db.Decimal(10, 2)
+  totalRefundToCustomer         Decimal                                @db.Decimal(10, 2)
+  superToAdminDue               Decimal                                @db.Decimal(10, 2)
+  adminToSuperDue               Decimal                                @db.Decimal(10, 2)
+  settlementStatus              AdminSettlementLedger_settlementStatus @default(ELIGIBLE)
+  settlementReferenceId         String?
+  settledAt                     DateTime?
+  calcMeta                      Json?
+  createdAt                     DateTime                               @default(now())
+  updatedAt                     DateTime
+  Admin                         Admin                                  @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  Booking                       Booking                                @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  Property                      Property                               @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  AdminSuperAdminTransferLedger AdminSuperAdminTransferLedger[]
+  RefundSettlement              RefundSettlement[]
+
+  @@index([adminId, settlementStatus, eligibleAt])
+  @@index([propertyId, settlementStatus, eligibleAt])
+}
+
+model AdminSuperAdminTransfer {
+  id                             String                               @id
+  adminId                        String
+  amount                         Decimal                              @db.Decimal(10, 2)
+  direction                      AdminSuperAdminTransfer_direction
+  transferType                   AdminSuperAdminTransfer_transferType
+  status                         AdminSuperAdminTransfer_status       @default(PENDING)
+  payoutReferenceId              String?
+  payoutBatchId                  String?
+  reason                         String?                              @db.Text
+  rawRequestJson                 String?                              @db.LongText
+  rawResponseJson                String?                              @db.LongText
+  createdAt                      DateTime                             @default(now())
+  updatedAt                      DateTime
+  Admin                          Admin                                @relation(fields: [adminId], references: [id])
+  AdminSuperAdminTransferLedger  AdminSuperAdminTransferLedger[]
+  AdminSuperAdminTransferPayment AdminSuperAdminTransferPayment[]
+
+  @@index([adminId, status])
+}
+
+model AdminSuperAdminTransferLedger {
+  id                      String                  @id
+  transferId              String
+  ledgerId                String
+  amount                  Decimal                 @db.Decimal(10, 2)
+  AdminSettlementLedger   AdminSettlementLedger   @relation(fields: [ledgerId], references: [id])
+  AdminSuperAdminTransfer AdminSuperAdminTransfer @relation(fields: [transferId], references: [id])
+
+  @@index([ledgerId])
+  @@index([transferId])
+}
+
+model AdminSuperAdminTransferPayment {
+  id                      String                                  @id
+  transferId              String
+  amount                  Decimal                                 @db.Decimal(10, 2)
+  currency                String                                  @default("INR")
+  provider                AdminSuperAdminTransferPayment_provider @default(MANUAL)
+  status                  AdminSuperAdminTransferPayment_status   @default(PENDING)
+  attempt                 Int                                     @default(1)
+  initiatedAt             DateTime                                @default(now())
+  completedAt             DateTime?
+  payoutReferenceId       String?
+  proofScreenshotUrl      String?
+  rawRequestJson          String?                                 @db.LongText
+  rawResponseJson         String?                                 @db.LongText
+  AdminSuperAdminTransfer AdminSuperAdminTransfer                 @relation(fields: [transferId], references: [id])
+
+  @@index([provider])
+  @@index([status])
+  @@index([transferId])
+}
+
+model BlogPost {
+  id            String          @id
+  title         String
+  slug          String          @unique
+  excerpt       String?         @db.Text
+  content       String          @db.LongText
+  coverImage    String?
+  status        BlogPost_status @default(DRAFT)
+  views         Int             @default(0)
+  publishedAt   DateTime?
+  createdBy     String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  isDeleted     Boolean         @default(false)
+  deletedAt     DateTime?
+  deletedBy     String?
+  Admin         Admin?          @relation(fields: [createdBy], references: [id])
+  BlogPostImage BlogPostImage[]
+
+  @@index([createdBy])
+  @@index([isDeleted, status])
+  @@index([status, publishedAt])
+}
+
+model BlogPostImage {
+  id         String    @id
+  blogPostId String
+  imageUrl   String
+  altText    String?
+  sortOrder  Int       @default(0)
+  createdAt  DateTime  @default(now())
+  isDeleted  Boolean   @default(false)
+  deletedAt  DateTime?
+  deletedBy  String?
+  BlogPost   BlogPost  @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+
+  @@unique([blogPostId, imageUrl])
+  @@index([blogPostId])
+}
+
+model BookingRoomAssignment {
+  id           String    @id
+  bookingId    String
+  propertyId   String
+  unitId       String
+  unitRoomId   String
+  assignedAt   DateTime  @default(now())
+  isActive     Boolean   @default(true)
+  unassignedAt DateTime?
+  Booking      Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  Property     Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  Unit         Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  UnitRoom     UnitRoom  @relation(fields: [unitRoomId], references: [id], onDelete: Cascade)
+
+  @@unique([unitRoomId, isActive])
+  @@index([bookingId])
+  @@index([propertyId])
+  @@index([unitId])
+}
+
+model CmsPage {
+  id                                    String         @id
+  title                                 String
+  slug                                  String         @unique
+  content                               String         @db.LongText
+  status                                CmsPage_status @default(DRAFT)
+  metaTitle                             String?
+  metaDescription                       String?
+  publishedAt                           DateTime?
+  createdAt                             DateTime       @default(now())
+  updatedAt                             DateTime
+  deletedAt                             DateTime?
+  isDeleted                             Boolean        @default(false)
+  createdByAdminId                      String?
+  updatedByAdminId                      String?
+  deletedByAdminId                      String?
+  Admin_CmsPage_createdByAdminIdToAdmin Admin?         @relation("CmsPage_createdByAdminIdToAdmin", fields: [createdByAdminId], references: [id])
+  Admin_CmsPage_deletedByAdminIdToAdmin Admin?         @relation("CmsPage_deletedByAdminIdToAdmin", fields: [deletedByAdminId], references: [id])
+  Admin_CmsPage_updatedByAdminIdToAdmin Admin?         @relation("CmsPage_updatedByAdminIdToAdmin", fields: [updatedByAdminId], references: [id])
+
+  @@index([createdByAdminId])
+  @@index([deletedAt])
+  @@index([deletedByAdminId])
+  @@index([isDeleted, status])
+  @@index([status])
+  @@index([updatedByAdminId])
+}
+
+model Faq {
+  id                                String       @id
+  question                          String       @db.VarChar(500)
+  answer                            String       @db.Text
+  category                          Faq_category
+  order                             Int
+  status                            Faq_status   @default(DRAFT)
+  isDeleted                         Boolean      @default(false)
+  deletedAt                         DateTime?
+  createdByAdminId                  String?
+  deletedByAdminId                  String?
+  updatedByAdminId                  String?
+  createdAt                         DateTime     @default(now())
+  updatedAt                         DateTime
+  Admin_Faq_createdByAdminIdToAdmin Admin?       @relation("Faq_createdByAdminIdToAdmin", fields: [createdByAdminId], references: [id])
+  Admin_Faq_deletedByAdminIdToAdmin Admin?       @relation("Faq_deletedByAdminIdToAdmin", fields: [deletedByAdminId], references: [id])
+  Admin_Faq_updatedByAdminIdToAdmin Admin?       @relation("Faq_updatedByAdminIdToAdmin", fields: [updatedByAdminId], references: [id])
+
+  @@index([category])
+  @@index([createdByAdminId])
+  @@index([deletedByAdminId])
+  @@index([isDeleted])
+  @@index([order])
+  @@index([status])
+  @@index([updatedByAdminId], map: "Faq_updatedByAdminId_fkey")
+}
+
+model GstSlab {
+  id                                    String    @id
+  minAmount                             Decimal   @db.Decimal(10, 2)
+  maxAmount                             Decimal?  @db.Decimal(10, 2)
+  gstPercent                            Float
+  isActive                              Boolean   @default(true)
+  createdAt                             DateTime  @default(now())
+  updatedAt                             DateTime
+  createdByAdminId                      String?
+  updatedByAdminId                      String?
+  isDeleted                             Boolean   @default(false)
+  deletedAt                             DateTime?
+  deletedByAdminId                      String?
+  Admin_GstSlab_createdByAdminIdToAdmin Admin?    @relation("GstSlab_createdByAdminIdToAdmin", fields: [createdByAdminId], references: [id])
+  Admin_GstSlab_deletedByAdminIdToAdmin Admin?    @relation("GstSlab_deletedByAdminIdToAdmin", fields: [deletedByAdminId], references: [id])
+  Admin_GstSlab_updatedByAdminIdToAdmin Admin?    @relation("GstSlab_updatedByAdminIdToAdmin", fields: [updatedByAdminId], references: [id])
+
+  @@index([createdByAdminId], map: "GstSlab_createdByAdminId_fkey")
+  @@index([deletedByAdminId], map: "GstSlab_deletedByAdminId_fkey")
+  @@index([isActive])
+  @@index([updatedByAdminId], map: "GstSlab_updatedByAdminId_fkey")
+}
+
+model HomePageBanner {
+  id                                           String                @id
+  title                                        String
+  subtitle                                     String?               @db.Text
+  imageUrl                                     String
+  imageAlt                                     String?
+  mobileImageUrl                               String?
+  mobileImageAlt                               String?
+  ctaText                                      String?
+  ctaUrl                                       String?
+  openInNewTab                                 Boolean               @default(false)
+  position                                     Int                   @unique
+  status                                       HomePageBanner_status @default(INACTIVE)
+  startsAt                                     DateTime?
+  endsAt                                       DateTime?
+  createdAt                                    DateTime              @default(now())
+  updatedAt                                    DateTime
+  isDeleted                                    Boolean               @default(false)
+  deletedAt                                    DateTime?
+  createdByAdminId                             String?
+  updatedByAdminId                             String?
+  deletedByAdminId                             String?
+  Admin_HomePageBanner_createdByAdminIdToAdmin Admin?                @relation("HomePageBanner_createdByAdminIdToAdmin", fields: [createdByAdminId], references: [id])
+  Admin_HomePageBanner_deletedByAdminIdToAdmin Admin?                @relation("HomePageBanner_deletedByAdminIdToAdmin", fields: [deletedByAdminId], references: [id])
+  Admin_HomePageBanner_updatedByAdminIdToAdmin Admin?                @relation("HomePageBanner_updatedByAdminIdToAdmin", fields: [updatedByAdminId], references: [id])
+
+  @@index([createdByAdminId], map: "HomePageBanner_createdByAdminId_fkey")
+  @@index([deletedByAdminId], map: "HomePageBanner_deletedByAdminId_fkey")
+  @@index([isDeleted, status])
+  @@index([position])
+  @@index([status])
+  @@index([updatedByAdminId], map: "HomePageBanner_updatedByAdminId_fkey")
+}
+
+model InventoryBlock {
+  id               String                @id
+  propertyId       String
+  unitId           String
+  unitRoomId       String?
+  scope            InventoryBlock_scope
+  reason           InventoryBlock_reason
+  note             String?               @db.Text
+  startAt          DateTime
+  endAt            DateTime
+  isActive         Boolean               @default(true)
+  liftedAt         DateTime?
+  createdByAdminId String
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime
+  Admin            Admin                 @relation(fields: [createdByAdminId], references: [id])
+  Property         Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  Unit             Unit                  @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  UnitRoom         UnitRoom?             @relation(fields: [unitRoomId], references: [id], onDelete: Cascade)
+
+  @@index([createdByAdminId], map: "InventoryBlock_createdByAdminId_fkey")
+  @@index([isActive, startAt, endAt])
+  @@index([propertyId])
+  @@index([scope, reason])
+  @@index([unitId])
+  @@index([unitRoomId])
+}
+
+model RefundSettlement {
+  id                      String                    @id
+  bookingId               String
+  ledgerId                String?
+  adminId                 String?
+  paymentId               String?
+  amount                  Decimal                   @db.Decimal(10, 2)
+  payer                   RefundSettlement_payer
+  status                  RefundSettlement_status   @default(PENDING)
+  reason                  String?                   @db.Text
+  refundReferenceId       String?
+  rawRequestJson          String?                   @db.LongText
+  rawResponseJson         String?                   @db.LongText
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime
+  Admin                   Admin?                    @relation(fields: [adminId], references: [id])
+  Booking                 Booking                   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  AdminSettlementLedger   AdminSettlementLedger?    @relation(fields: [ledgerId], references: [id])
+  BookingPayment          BookingPayment?           @relation(fields: [paymentId], references: [id])
+  RefundSettlementPayment RefundSettlementPayment[]
+
+  @@index([adminId])
+  @@index([bookingId])
+  @@index([ledgerId])
+  @@index([paymentId])
+}
+
+model RefundSettlementPayment {
+  id                 String                           @id
+  refundCode         String                           @unique
+  refundSettlementId String
+  amount             Decimal                          @db.Decimal(10, 2)
+  currency           String                           @default("INR")
+  provider           RefundSettlementPayment_provider @default(MANUAL)
+  status             RefundSettlementPayment_status   @default(PENDING)
+  attempt            Int                              @default(1)
+  initiatedAt        DateTime                         @default(now())
+  completedAt        DateTime?
+  refundReferenceId  String?
+  proofScreenshotUrl String?
+  rawRequestJson     String?                          @db.LongText
+  rawResponseJson    String?                          @db.LongText
+  isDeleted          Boolean                          @default(false)
+  deletedAt          DateTime?
+  createdByAdminId   String?
+  createdAt          DateTime                         @default(now())
+  updatedAt          DateTime
+  updatedByAdminId   String?
+  Admin              Admin?                           @relation(fields: [createdByAdminId], references: [id])
+  RefundSettlement   RefundSettlement                 @relation(fields: [refundSettlementId], references: [id])
+
+  @@index([createdByAdminId], map: "RefundSettlementPayment_createdByAdminId_fkey")
+  @@index([provider])
+  @@index([refundSettlementId])
+  @@index([status])
 }
 
 enum AdminRole {
@@ -649,12 +1039,6 @@ enum PriceAdjustmentType {
   FLAT
 }
 
-enum BookingRefund_status {
-  PENDING
-  SUCCESS
-  FAILED
-}
-
 enum BookingUnit_unitTypeSnapshot {
   ENTIRE_PROPERTY
   ROOM_TYPE
@@ -714,4 +1098,135 @@ enum RefundPolicyRefundType {
   FULL_REFUND
   PERCENTAGE_DEDUCTION
   FLAT_DEDUCTION
+}
+
+enum AdminSuperAdminTransfer_direction {
+  SUPER_TO_ADMIN
+  ADMIN_TO_SUPER
+}
+
+enum Faq_category {
+  BOOKING
+  POLICIES
+  HOSTING
+  PAYMENT
+}
+
+enum AdminSettlementLedger_bookingChannel {
+  ONLINE
+  OFFLINE
+}
+
+enum AdminSuperAdminTransfer_transferType {
+  NORMAL_PAYOUT
+  REFUND_RECOUP
+  MANUAL_ADJUSTMENT
+}
+
+enum AdminSuperAdminTransferPayment_provider {
+  RAZORPAY
+  STRIPE
+  CASHFREE
+  MANUAL
+  OTHER
+}
+
+enum CmsPage_status {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum InventoryBlock_scope {
+  UNIT
+  ROOM
+}
+
+enum AdminSuperAdminTransfer_status {
+  PENDING
+  IN_PROGRESS
+  SUCCESS
+  FAILED
+  CANCELED
+}
+
+enum AdminSuperAdminTransferPayment_status {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
+enum Faq_status {
+  DRAFT
+  PUBLISHED
+}
+
+enum InventoryBlock_reason {
+  MAINTENANCE
+  CLEANING
+  OWNER_STAY
+  STAFF_USE
+  RENOVATION
+  OTHER
+}
+
+enum RefundSettlementPayment_provider {
+  RAZORPAY
+  STRIPE
+  CASHFREE
+  MANUAL
+  OTHER
+}
+
+enum AdminSettlementLedger_eligibleStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  COMPLETED
+  CANCELED
+  NO_SHOW
+}
+
+enum BlogPost_status {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum RefundSettlement_payer {
+  SUPER_ADMIN
+  ADMIN
+}
+
+enum RefundSettlementPayment_status {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
+enum RefundSettlement_status {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum HomePageBanner_status {
+  ACTIVE
+  INACTIVE
+}
+
+enum AdminSettlementLedger_settlementStatus {
+  ELIGIBLE
+  REQUESTED
+  SETTLED
+  VOID
+}
+
+enum Booking_canceledBy {
+  ADMIN
+  CUSTOMER
+  SUPER_ADMIN
+  SYSTEM
 }

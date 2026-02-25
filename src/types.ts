@@ -1,37 +1,48 @@
 import type { FastifyRequest } from "fastify";
 
 export type OwnerProfileRequestBody = {
-    adminId: string;
-    photoUrl: string;
-    preferredLanguage: string;
-    shortBio?: string;
+  adminId: string;
+  photoUrl: string;
+  preferredLanguage: string;
+  shortBio?: string;
 
-    // 🔐 Phone verification token (JWT from OTP verification step)
-    phoneVerificationToken: string;
-}
+  // 🔐 Phone verification token (can come from header, body optional fallback)
+  phoneVerificationToken?: string;
+
+  // 🔽 Optional fields from AdminProfile schema
+  countryCode?: string;
+  isGstRegistered?: boolean;
+  gstNumber?: string;
+  gstLegalName?: string;
+  gstStateCode?: string;
+  gstBillingAddress?: string;
+  pincode?: string;
+};
 
 export type OwnerProfileRequest = FastifyRequest<{
-    Body: OwnerProfileRequestBody;
+  Body: OwnerProfileRequestBody;
 }>;
 
+export type OwnerProfileUpdateRequestBody = {
+  adminId: string;
+  fullName?: string | null;
+  email?: string | null;
+  photoUrl?: string | null;
+  preferredLanguage?: string | null;
+  shortBio?: string | null;
+  phoneVerificationToken?: string | null;
+
+  countryCode?: string | null;
+  isGstRegistered?: boolean | null;
+  gstNumber?: string | null;
+  gstLegalName?: string | null;
+  gstStateCode?: string | null;
+  gstBillingAddress?: string | null;
+  pincode?: string | null;
+};
+
 export type OwnerProfileUpdateRequest = FastifyRequest<{
-  Body: {
-    adminId: string;
-
-    // Admin
-    fullName?: string;
-    email?: string;
-
-    // AdminProfile
-    photoUrl?: string;
-    preferredLanguage?: string;
-    shortBio?: string | null;
-
-    // 🔐 Phone change via verification token (OTP flow)
-    // If present and decodes to a different phone, phone will be updated.
-    // Client must NOT send `phone` directly anymore.
-    phoneVerificationToken?: string;
-  };
+  Body: OwnerProfileUpdateRequestBody;
 }>;
 
 export type CustomerProfileRequest = FastifyRequest<{
