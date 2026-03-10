@@ -951,7 +951,15 @@ UpdateOwnerProfileResponseSchema : {
                                 "preferredLanguage",
                                 "shortBio",
                                 "adminId",
+                                "commissionPercentOverride",
+                                "gstBillingAddress",
+                                "gstLegalName",
+                                "gstNumber",
+                                "gstStateCode",
+                                "isGstRegistered",
+                                "pincode",
                             ],
+                            additionalProperties: false,
                             properties: {
                                 id: {
                                     type: "string",
@@ -986,6 +994,34 @@ UpdateOwnerProfileResponseSchema : {
                                 shortBio: {
                                     type: ["string", "null"],
                                     example: "Experienced platform owner",
+                                },
+                                commissionPercentOverride: {
+                                    type: ["number", "null"],
+                                    example: null,
+                                },
+                                gstBillingAddress: {
+                                    type: ["string", "null"],
+                                    example: "123 MG Road, Bengaluru, Karnataka",
+                                },
+                                gstLegalName: {
+                                    type: ["string", "null"],
+                                    example: "ABC Properties Private Limited",
+                                },
+                                gstNumber: {
+                                    type: ["string", "null"],
+                                    example: "29ABCDE1234F1Z5",
+                                },
+                                gstStateCode: {
+                                    type: ["string", "null"],
+                                    example: "29",
+                                },
+                                isGstRegistered: {
+                                    type: "boolean",
+                                    example: false,
+                                },
+                                pincode: {
+                                    type: ["string", "null"],
+                                    example: "560001",
                                 },
                                 adminId: {
                                     type: "string",

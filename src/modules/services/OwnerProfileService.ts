@@ -1108,7 +1108,26 @@ export const getOwnerProfileService = async (adminId: string) => {
                 id: true,
                 fullName: true,
                 email: true,
-                profile: true
+                profile: {
+                    select: {
+                        id: true,
+                        adminId: true,
+                        photoUrl: true,
+                        phone: true,
+                        countryCode: true,
+                        preferredLanguage: true,
+                        shortBio: true,
+                        commissionPercentOverride: true,
+                        gstBillingAddress: true,
+                        gstLegalName: true,
+                        gstNumber: true,
+                        gstStateCode: true,
+                        isGstRegistered: true,
+                        pincode: true,
+                        createdAt: true,
+                        updatedAt: true,
+                    },
+                },
             },
         });
 
