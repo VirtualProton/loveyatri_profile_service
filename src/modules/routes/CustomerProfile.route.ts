@@ -28,6 +28,8 @@ const customerProfileRoute: FastifyPluginAsync = async (fastify) => {
         "- The token encodes `isVerified` and the normalized phone number (with country code, e.g. `919876543210`).\n" +
         "- If this token is missing, invalid, or expired, the request will be rejected.\n\n" +
         "### Behaviour\n" +
+        "- Uses `req.user.id` from the access token as the customer id.\n" +
+        "- Client must **not** send `customerId` in the request body.\n" +
         "- Uses the phone number from `verificationToken`; client must **not** send phone directly.\n" +
         "- Fails if:\n" +
         "  - Customer does not exist (`404`).\n" +

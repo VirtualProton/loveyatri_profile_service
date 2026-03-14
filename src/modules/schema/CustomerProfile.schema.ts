@@ -1,16 +1,9 @@
 export const CustomerProfileSchema = {
   type: "object",
-  required: ["customerId", "photoUrl", "verificationToken"],
+  required: ["photoUrl", "verificationToken"],
   additionalProperties: false,
 
   properties: {
-    customerId: {
-      type: "string",
-      example: "a1b2c3d4-uuid",
-      description:
-        "Customer ID (primary key of Customer). The authenticated customer for whom the profile is being created.",
-    },
-
     photoUrl: {
       type: "string",
       format: "uri",
@@ -39,7 +32,6 @@ export const CustomerProfileSchema = {
 
   errorMessage: {
     required: {
-      customerId: "customerId is required",
       photoUrl: "photoUrl is required",
       verificationToken: "verificationToken (phone verification token) is required",
     },

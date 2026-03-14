@@ -47,7 +47,6 @@ export type OwnerProfileUpdateRequest = FastifyRequest<{
 
 export type CustomerProfileRequest = FastifyRequest<{
     Body: {
-        customerId: string;
         photoUrl: string;
         address?: string | null;
         verificationToken: string; // required

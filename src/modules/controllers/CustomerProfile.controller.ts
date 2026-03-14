@@ -1,4 +1,4 @@
-import type { FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyReply } from "fastify";
 import { AppError } from "../../utils/appError.js";
 import { CustomerProfileRequest } from "../../types.js";
 import { CustomerProfileService } from "../services/CustomerProfileService.js";
@@ -8,7 +8,12 @@ export const CustomerProfileController = async (
   reply: FastifyReply
 ) => {
   try {
-    const { customerId, photoUrl, address, verificationToken } = req.body;
+    const { photoUrl, address, verificationToken } = req.body;
+    const customerId = req.user?.id;
+
+    if (!customerId) {
+      throw new AppError(401, "Unauthorized");
+    }
 
     const profile = await CustomerProfileService({
       customerId,
