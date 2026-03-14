@@ -70,7 +70,10 @@ export type CustomerProfileGetRequest = FastifyRequest<{
     };
 }>;
 export type EmailChangeTokenPayload = {
-    adminId: string;
+    adminId?: string;
+    ownerId?: string;
+    customerId?: string;
     newEmail: string;
     oldEmail: string;
+    version?: number;
 }

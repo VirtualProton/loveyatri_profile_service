@@ -6,8 +6,12 @@ export function buildEmailChangeLink(token: string) {
     return `${env.APP_URL}/verify-email-change?token=${encodeURIComponent(token)}`;
   }
 
-export function emailChangeToken(payload:any) {
+export function emailChangeToken(payload: EmailChangeTokenPayload) {
     return jwt.sign(payload, env.JWT_SECRET, {
       expiresIn: "15m",
     });
+}
+
+export function verifyEmailChangeToken(token: string) {
+    return jwt.verify(token, env.JWT_SECRET) as EmailChangeTokenPayload;
 }

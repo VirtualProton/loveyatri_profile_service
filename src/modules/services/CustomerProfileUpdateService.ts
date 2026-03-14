@@ -1,7 +1,10 @@
 import { AppError } from "../../utils/appError.js";
 import { prisma } from "../../utils/prisma.js";
 import { env } from "../../config/env.js";
-import { emailChangeToken } from "../../utils/generateEmailVerificationToken.js";
+import {
+  emailChangeToken,
+  verifyEmailChangeToken,
+} from "../../utils/generateEmailVerificationToken.js";
 // import { sendCustomerPhoneChangeOtp } from "../../utils/otp.js"; // TODO: plug your OTP sender
 
 import jwt from "jsonwebtoken";
@@ -342,7 +345,7 @@ export const CustomerProfileUpdateService = async (data: {
 
 
 type EmailChangeTokenPayload = {
-  customerId: string;
+  customerId?: string;
   newEmail: string;
   oldEmail: string;
   version?: number;
@@ -358,7 +361,7 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
 
     // 1. Decode & validate token
     try {
-      payload = emailChangeToken(token);
+      payload = verifyEmailChangeToken(token) as EmailChangeTokenPayload;
     } catch (err: any) {
       // Map JWT errors to a clean AppError
       throw new AppError(
