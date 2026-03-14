@@ -65,7 +65,7 @@ export type CustomerProfileUpdateRequest = FastifyRequest<{
 }>;
 
 export type CustomerProfileGetRequest = FastifyRequest<{
-    Body: {
+    Querystring: {
         customerId: string;
     };
 }>;
