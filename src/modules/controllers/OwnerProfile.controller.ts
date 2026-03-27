@@ -43,7 +43,6 @@ export const OwnerProfileController = async (
             photoUrl,
             preferredLanguage,
             shortBio: shortBio ?? null,
-            ...(city !== undefined ? { city } : {}),
             // optional fields (only added if not undefined)
             ...(countryCode !== undefined ? { countryCode } : {}),
             ...(isGstRegistered !== undefined ? { isGstRegistered } : {}),

@@ -82,6 +82,90 @@ function verifyPhoneVerificationToken(
     }
 }
 
+const ownerProfileSelect = {
+    id: true,
+    adminId: true,
+    photoUrl: true,
+    phone: true,
+    countryCode: true,
+    preferredLanguage: true,
+    shortBio: true,
+    commissionPercentOverride: true,
+    gstBillingAddress: true,
+    gstLegalName: true,
+    gstNumber: true,
+    gstStateCode: true,
+    isGstRegistered: true,
+    pincode: true,
+    createdAt: true,
+    updatedAt: true,
+} satisfies Prisma.AdminProfileSelect;
+
+const ownerForResponseSelect = {
+    id: true,
+    fullName: true,
+    email: true,
+    isActive: true,
+    isProfileComplete: true,
+    profile: {
+        select: ownerProfileSelect,
+    },
+} satisfies Prisma.AdminSelect;
+
+const ownerForGetProfileSelect = {
+    id: true,
+    fullName: true,
+    email: true,
+    profile: {
+        select: ownerProfileSelect,
+    },
+} satisfies Prisma.AdminSelect;
+
+const ownerForUpdateLoadSelect = {
+    id: true,
+    email: true,
+    isActive: true,
+    profile: {
+        select: {
+            id: true,
+            phone: true,
+            isGstRegistered: true,
+            gstNumber: true,
+            gstLegalName: true,
+            gstStateCode: true,
+            gstBillingAddress: true,
+            pincode: true,
+        },
+    },
+} satisfies Prisma.AdminSelect;
+
+const ownerForEmailVerificationLoadSelect = {
+    id: true,
+    email: true,
+    emailVerifyVersion: true,
+} satisfies Prisma.AdminSelect;
+
+function attachLegacyOwnerCity<T extends { profile: Record<string, unknown> | null }>(
+    owner: T
+) {
+    return {
+        ...owner,
+        profile: owner.profile
+            ? {
+                ...owner.profile,
+                city: null,
+            }
+            : null,
+    };
+}
+
+function attachLegacyProfileCity<T extends Record<string, unknown>>(profile: T) {
+    return {
+        ...profile,
+        city: null,
+    };
+}
+
 
 
 export const OwnerProfileService = async (data: {
@@ -89,7 +173,6 @@ export const OwnerProfileService = async (data: {
     photoUrl: string;
     preferredLanguage: string; // will be validated/cast to enum
     shortBio?: string | null;
-    city?: string | null;
 
     // 🔐 Phone verification token (from controller)
     phoneVerificationToken?: string;
@@ -111,7 +194,6 @@ export const OwnerProfileService = async (data: {
             photoUrl,
             preferredLanguage,
             shortBio,
-            city,
             phoneVerificationToken,
             countryCode,
             isGstRegistered,
@@ -170,10 +252,6 @@ export const OwnerProfileService = async (data: {
 
         if (shortBio !== undefined && shortBio !== null) {
             shortBio = shortBio.toString().trim() || null;
-        }
-
-        if (city !== undefined && city !== null) {
-            city = city.toString().trim() || null;
         }
 
         if (pincode !== undefined && pincode !== null) {
@@ -355,7 +433,6 @@ export const OwnerProfileService = async (data: {
                     adminId,
                     phone,
                     photoUrl,
-                    city: city ?? null,
                     preferredLanguage: preferredLanguage as any,
                     shortBio: shortBio ?? null,
 
@@ -387,7 +464,7 @@ export const OwnerProfileService = async (data: {
                 },
             });
 
-            return profile;
+            return attachLegacyProfileCity(profile);
         });
     } catch (err: any) {
         // Let known AppErrors bubble up
@@ -464,7 +541,6 @@ type OwnerProfileUpdateData = {
   photoUrl?: string | null;
   preferredLanguage?: string | null;
   shortBio?: string | null;
-  city?: string | null;
 
   // 🔐 Phone verification token (from OTP verification step)
   phoneVerificationToken?: string | null;
@@ -492,7 +568,6 @@ export const UpdateOwnerProfileService = async (
       photoUrl,
       preferredLanguage,
       shortBio,
-      city,
       phoneVerificationToken,
 
       countryCode,
@@ -514,7 +589,7 @@ export const UpdateOwnerProfileService = async (
       // 1. Load current admin + profile
       const admin = await tx.admin.findUnique({
         where: { id: adminId },
-        include: { profile: true },
+        select: ownerForUpdateLoadSelect,
       });
 
       if (!admin) {
@@ -635,15 +710,6 @@ export const UpdateOwnerProfileService = async (
         } else {
           const trimmed = shortBio.toString().trim();
           adminProfileUpdateData.shortBio = trimmed || null;
-        }
-      }
-
-      if (city !== undefined) {
-        if (city === null) {
-          adminProfileUpdateData.city = null;
-        } else {
-          const trimmed = city.toString().trim();
-          adminProfileUpdateData.city = trimmed || null;
         }
       }
 
@@ -927,7 +993,7 @@ export const UpdateOwnerProfileService = async (
       // 11. Fetch updated owner with profile
       const updatedAdmin = await tx.admin.findUnique({
         where: { id: adminId },
-        include: { profile: true },
+        select: ownerForResponseSelect,
       });
 
       if (!updatedAdmin) {
@@ -938,7 +1004,7 @@ export const UpdateOwnerProfileService = async (
       }
 
       return {
-        owner: updatedAdmin,
+        owner: attachLegacyOwnerCity(updatedAdmin),
         emailChangeLink,
         phoneChanged,
       };
@@ -1029,7 +1095,7 @@ export const verifyEmailChangeTokenService = async (token: string) => {
             // 1. Load owner
             const admin = await tx.admin.findUnique({
                 where: { id: adminId },
-                include: { profile: true },
+                select: ownerForEmailVerificationLoadSelect,
             });
 
             if (!admin) {
@@ -1069,7 +1135,7 @@ export const verifyEmailChangeTokenService = async (token: string) => {
             }
 
             // 5. Apply new email & bump version again → this token becomes invalid
-            const updatedAdmin = await tx.admin.update({
+            await tx.admin.update({
                 where: { id: adminId },
                 data: {
                     email: newEmail,
@@ -1077,13 +1143,13 @@ export const verifyEmailChangeTokenService = async (token: string) => {
                         increment: 1,
                     },
                 },
-                include: { profile: true },
+                select: { id: true },
             });
 
             // Re-fetch to be extra sure we return the latest
             const finalOwner = await tx.admin.findUnique({
                 where: { id: adminId },
-                include: { profile: true },
+                select: ownerForResponseSelect,
             });
 
             if (!finalOwner) {
@@ -1094,7 +1160,7 @@ export const verifyEmailChangeTokenService = async (token: string) => {
             }
 
             return {
-                owner: finalOwner,
+                owner: attachLegacyOwnerCity(finalOwner),
                 emailChanged: true,
             };
         });
@@ -1122,43 +1188,18 @@ export const getOwnerProfileService = async (adminId: string) => {
     try {
         const profile = await prisma.admin.findUnique({
             where: { id: adminId },
-            select: {
-                id: true,
-                fullName: true,
-                email: true,
-                profile: {
-                    select: {
-                        id: true,
-                        adminId: true,
-                        photoUrl: true,
-                        phone: true,
-                        countryCode: true,
-                        city: true,
-                        preferredLanguage: true,
-                        shortBio: true,
-                        commissionPercentOverride: true,
-                        gstBillingAddress: true,
-                        gstLegalName: true,
-                        gstNumber: true,
-                        gstStateCode: true,
-                        isGstRegistered: true,
-                        pincode: true,
-                        createdAt: true,
-                        updatedAt: true,
-                    },
-                },
-            },
+            select: ownerForGetProfileSelect,
         });
 
         if (!profile) {
             throw new AppError(404, "Owner profile not found");
         }
-        return profile;
+        return attachLegacyOwnerCity(profile);
     } catch (err: any) {
         if (err instanceof AppError) throw err;
         throw new AppError(
             500,
-            "Fetching Owner profile failed" + err.message
+            "Fetching Owner profile failed: " + (err?.message || "Unexpected error")
         );
     }
 }

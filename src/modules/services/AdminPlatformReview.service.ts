@@ -23,7 +23,6 @@ const platformReviewWithAdminSelect = {
       fullName: true,
       profile: {
         select: {
-          city: true,
           photoUrl: true,
         },
       },
@@ -50,7 +49,7 @@ function mapPlatformReviewForRead(
     updatedAt: platformReview.updatedAt,
     admin: {
       fullName: platformReview.createdByAdmin.fullName,
-      city: platformReview.createdByAdmin.profile?.city ?? null,
+      city: null,
       photoUrl: platformReview.createdByAdmin.profile?.photoUrl ?? null,
     },
   };
