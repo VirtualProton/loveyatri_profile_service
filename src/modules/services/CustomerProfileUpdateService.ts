@@ -5,18 +5,15 @@ import {
   emailChangeToken,
   verifyEmailChangeToken,
 } from "../../utils/generateEmailVerificationToken.js";
-// import { sendCustomerPhoneChangeOtp } from "../../utils/otp.js"; // TODO: plug your OTP sender
-
 import jwt from "jsonwebtoken";
 import { Prisma } from "../../generated/prisma/client.js";
-
 
 type PhoneVerificationTokenPayload = {
   isVerified: boolean;
   phone: string; // normalized phone with country code, e.g. "919876543210"
 };
 
-const PHONE_VERIFICATION_TOKEN_SECRET = env.JWT_SECRET
+const PHONE_VERIFICATION_TOKEN_SECRET = env.JWT_SECRET;
 
 /**
  * Decode and validate the phone verification token.
@@ -42,7 +39,8 @@ function decodePhoneVerificationToken(
       throw new AppError(400, "Invalid phone verification token.");
     }
 
-    const { isVerified, phone } = decoded as Partial<PhoneVerificationTokenPayload>;
+    const { isVerified, phone } =
+      decoded as Partial<PhoneVerificationTokenPayload>;
 
     if (typeof isVerified !== "boolean" || typeof phone !== "string") {
       throw new AppError(400, "Invalid phone verification token payload.");
@@ -68,24 +66,79 @@ function decodePhoneVerificationToken(
   }
 }
 
+function normalizeNullableText(value: string | null | undefined) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+function normalizeCountryCode(
+  value: string | null | undefined,
+  options: { allowNull?: boolean } = {}
+) {
+  const { allowNull = false } = options;
+
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return allowNull ? null : undefined;
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return allowNull ? null : undefined;
+  }
+
+  const normalized = trimmed.startsWith("+")
+    ? `+${trimmed.slice(1).replace(/\D/g, "")}`
+    : `+${trimmed.replace(/\D/g, "")}`;
+
+  if (!/^\+\d{1,4}$/.test(normalized)) {
+    throw new AppError(400, "Invalid country code. It must be like +91, +1, etc.");
+  }
+
+  return normalized;
+}
+
 export const CustomerProfileUpdateService = async (data: {
   customerId: string;
   fullName?: string;
   photoUrl?: string;
   address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  countryCode?: string | null;
   email?: string;
-  verificationToken?: string; // optional – used only when changing phone
+  verificationToken?: string;
 }) => {
   try {
-    const { customerId, fullName, photoUrl, address, email, verificationToken } =
-      data;
+    const {
+      customerId,
+      fullName,
+      photoUrl,
+      address,
+      city,
+      state,
+      countryCode,
+      email,
+      verificationToken,
+    } = data;
 
     if (!customerId) {
       throw new AppError(400, "Customer ID is required");
     }
 
     return await prisma.$transaction(async (tx) => {
-      // 1. Get current customer and profile
       const customer = await tx.customer.findUnique({
         where: { id: customerId },
         include: { CustomerProfile: true },
@@ -97,14 +150,11 @@ export const CustomerProfileUpdateService = async (data: {
 
       const currentEmail = customer.email;
       const currentPhone = customer.CustomerProfile?.phone ?? null;
+      const normalizedEmail = email?.trim();
 
-      // 2. Decide what is actually changing
-
-      // Email change: only if email is provided and different
       const wantsEmailChange =
-        email !== undefined && email !== currentEmail;
+        normalizedEmail !== undefined && normalizedEmail !== currentEmail;
 
-      // Phone change: via verificationToken
       let wantsPhoneChange = false;
       let newPhoneFromToken: string | null = null;
 
@@ -129,13 +179,11 @@ export const CustomerProfileUpdateService = async (data: {
           );
         }
 
-        // Only consider it a change if different from current
         if (!currentPhone || newPhoneFromToken !== currentPhone) {
           wantsPhoneChange = true;
         }
       }
 
-      // 3. Disallow changing email and phone together
       if (wantsEmailChange && wantsPhoneChange) {
         throw new AppError(
           400,
@@ -143,30 +191,44 @@ export const CustomerProfileUpdateService = async (data: {
         );
       }
 
-      const customerUpdateData: Record<string, any> = {};
-      const profileUpdateData: Record<string, any> = {};
+      const customerUpdateData: Record<string, unknown> = {};
+      const profileUpdateData: Record<string, unknown> = {};
 
-      // 4. fullName → Customer + CustomerProfile
       if (fullName !== undefined) {
         customerUpdateData.fullName = fullName;
-        profileUpdateData.fullName = fullName;
       }
 
-      // 5. photoUrl → profile
       if (photoUrl !== undefined) {
-        profileUpdateData.photoUrl = photoUrl;
+        const normalizedPhotoUrl = photoUrl.trim();
+
+        if (!normalizedPhotoUrl) {
+          throw new AppError(400, "photoUrl cannot be empty");
+        }
+
+        profileUpdateData.photoUrl = normalizedPhotoUrl;
       }
 
-      // 6. address → profile
       if (address !== undefined) {
-        profileUpdateData.address = address;
+        profileUpdateData.address = normalizeNullableText(address);
       }
 
-      // 7. Handle PHONE change (no OTP send here; token already verified)
+      if (city !== undefined) {
+        profileUpdateData.city = normalizeNullableText(city);
+      }
+
+      if (state !== undefined) {
+        profileUpdateData.state = normalizeNullableText(state);
+      }
+
+      if (countryCode !== undefined) {
+        profileUpdateData.countryCode = normalizeCountryCode(countryCode, {
+          allowNull: true,
+        });
+      }
+
       let phoneChanged = false;
 
       if (wantsPhoneChange && newPhoneFromToken) {
-        // Check phone uniqueness across other profiles
         const phoneExists = await tx.customerProfile.findFirst({
           where: {
             phone: newPhoneFromToken,
@@ -186,18 +248,23 @@ export const CustomerProfileUpdateService = async (data: {
         phoneChanged = true;
       }
 
-      // 8. Handle EMAIL change with versioned token
       let emailChangeLink: string | null = null;
 
       if (wantsEmailChange) {
-        if (!email) {
+        if (!normalizedEmail) {
           throw new AppError(400, "Email is required");
         }
 
-        // Check uniqueness in Customer.email / Customer.pendingEmail
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail)) {
+          throw new AppError(400, "Invalid email format");
+        }
+
         const emailExistsInCustomer = await tx.customer.findFirst({
           where: {
-            OR: [{ email }, { pendingEmail: email }],
+            OR: [
+              { email: normalizedEmail },
+              { pendingEmail: normalizedEmail },
+            ],
             NOT: { id: customerId },
           },
           select: { id: true },
@@ -210,7 +277,6 @@ export const CustomerProfileUpdateService = async (data: {
           );
         }
 
-        // Only active accounts can change email
         if (!customer.isActive) {
           throw new AppError(
             403,
@@ -218,7 +284,6 @@ export const CustomerProfileUpdateService = async (data: {
           );
         }
 
-        // Bump version atomically
         const updatedForVersion = await tx.customer.update({
           where: { id: customerId },
           data: {
@@ -235,7 +300,7 @@ export const CustomerProfileUpdateService = async (data: {
 
         const token = emailChangeToken({
           customerId,
-          newEmail: email,
+          newEmail: normalizedEmail,
           oldEmail: updatedForVersion.email,
           version: updatedForVersion.emailVerifyVersion,
         });
@@ -243,15 +308,8 @@ export const CustomerProfileUpdateService = async (data: {
         emailChangeLink = `${env.APP_URL}/verify-email-change?token=${encodeURIComponent(
           token
         )}`;
-
-        // NOTE:
-        // - We are NOT updating Customer.email here.
-        // - Your verify-email-change endpoint should:
-        //   - validate token + version
-        //   - update Customer.email (and maybe Customer.pendingEmail).
       }
 
-      // 9. If nothing is changing at all, bail out early
       const hasCustomerChanges = Object.keys(customerUpdateData).length > 0;
       const hasProfileChanges = Object.keys(profileUpdateData).length > 0;
 
@@ -264,8 +322,6 @@ export const CustomerProfileUpdateService = async (data: {
         throw new AppError(400, "No changes provided to update");
       }
 
-      // 10. Apply updates
-
       if (hasCustomerChanges) {
         await tx.customer.update({
           where: { id: customerId },
@@ -274,20 +330,19 @@ export const CustomerProfileUpdateService = async (data: {
       }
 
       if (hasProfileChanges) {
-        if (customer.CustomerProfile) {
-          await tx.customerProfile.update({
-            where: { customerId },
-            data: profileUpdateData,
-          });
-        } else {
+        if (!customer.CustomerProfile) {
           throw new AppError(
             404,
             "Customer profile not found. Please create profile first."
           );
         }
+
+        await tx.customerProfile.update({
+          where: { customerId },
+          data: profileUpdateData,
+        });
       }
 
-      // 11. Fetch updated customer with profile
       const updatedCustomer = await tx.customer.findUnique({
         where: { id: customerId },
         include: { CustomerProfile: true },
@@ -302,8 +357,8 @@ export const CustomerProfileUpdateService = async (data: {
 
       return {
         customer: updatedCustomer,
-        emailChangeLink, // null if email not changed
-        phoneChanged,    // true if phone changed via verificationToken
+        emailChangeLink,
+        phoneChanged,
       };
     });
   } catch (err: any) {
@@ -342,8 +397,6 @@ export const CustomerProfileUpdateService = async (data: {
   }
 };
 
-
-
 type EmailChangeTokenPayload = {
   customerId?: string;
   newEmail: string;
@@ -357,13 +410,11 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
       throw new AppError(400, "Email change token is required");
     }
 
-    let payload:any = null;
+    let payload: any = null;
 
-    // 1. Decode & validate token
     try {
       payload = verifyEmailChangeToken(token) as EmailChangeTokenPayload;
-    } catch (err: any) {
-      // Map JWT errors to a clean AppError
+    } catch {
       throw new AppError(
         400,
         "Invalid or expired email change token. Please request a new link"
@@ -380,7 +431,6 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
     }
 
     return await prisma.$transaction(async (tx) => {
-      // 2. Load customer + profile
       const customer = await tx.customer.findUnique({
         where: { id: customerId },
         include: { CustomerProfile: true },
@@ -390,7 +440,6 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
         throw new AppError(404, "Customer not found");
       }
 
-      // 3. Check version to make token single-use + invalidate old ones
       if (version == null || customer.emailVerifyVersion !== version) {
         throw new AppError(
           400,
@@ -398,7 +447,6 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
         );
       }
 
-      // 4. Optional: sanity check that DB still has the same old email
       if (customer.email !== oldEmail) {
         throw new AppError(
           400,
@@ -406,7 +454,6 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
         );
       }
 
-      // 5. Extra safety: ensure newEmail not used (race-condition protection)
       const emailExistsInCustomer = await tx.customer.findFirst({
         where: {
           OR: [{ email: newEmail }, { pendingEmail: newEmail }],
@@ -422,21 +469,17 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
         );
       }
 
-      // 6. Apply new email + bump version again => token becomes invalid
-      const updatedCustomer = await tx.customer.update({
+      await tx.customer.update({
         where: { id: customerId },
         data: {
           email: newEmail,
           pendingEmail: null,
           emailVerifyVersion: {
-            increment: 1, // 🔑 makes this token (and any previous ones) invalid
+            increment: 1,
           },
         },
-        include: { CustomerProfile: true },
       });
 
-
-      // Re-fetch to return fully consistent data
       const finalCustomer = await tx.customer.findUnique({
         where: { id: customerId },
         include: { CustomerProfile: true },
@@ -459,7 +502,6 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
       throw err;
     }
 
-    // Prisma unique constraint (just in case)
     if (err?.code === "P2002") {
       throw new AppError(409, "Email already in use");
     }
@@ -472,4 +514,3 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
     );
   }
 };
-

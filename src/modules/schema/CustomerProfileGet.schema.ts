@@ -57,6 +57,8 @@ export const ResponseSchema = {
                                 "phone",
                                 "countryCode",
                                 "address",
+                                "city",
+                                "state",
                                 "createdAt",
                                 "updatedAt",
                             ],
@@ -75,6 +77,14 @@ export const ResponseSchema = {
                                 address: {
                                     type: ["string", "null"],
                                     example: "123 Main Street, City, State, 12345",
+                                },
+                                city: {
+                                    type: ["string", "null"],
+                                    example: "Hyderabad",
+                                },
+                                state: {
+                                    type: ["string", "null"],
+                                    example: "Telangana",
                                 },
                                 createdAt: { type: "string", format: "date-time", example: "2024-01-01T00:00:00.000Z" },
                                 updatedAt: { type: "string", format: "date-time", example: "2024-01-01T00:00:00.000Z" },

@@ -7,7 +7,7 @@ export const CustomerProfileUpdateSchema = {
     "Update customer profile details.\n\n" +
     "Rules:\n" +
     "- `customerId` is required.\n" +
-    "- You may update `fullName`, `photoUrl`, or `address` directly.\n" +
+    "- You may update `fullName`, `photoUrl`, `address`, `city`, `state`, or `countryCode` directly.\n" +
     "- To change email, provide a new `email`. A verification link will be generated.\n" +
     "- To change phone, provide a valid `verificationToken` issued after OTP verification.\n" +
     "- Email and phone cannot be updated in the same request.",
@@ -23,22 +23,40 @@ export const CustomerProfileUpdateSchema = {
       type: "string",
       example: "John Doe",
       description:
-        "Updated full name. This updates both Customer and CustomerProfile.",
+        "Updated full name. This updates the `Customer.fullName` field.",
     },
 
     photoUrl: {
       type: "string",
       format: "uri",
       example: "https://cdn.example.com/profile.jpg",
-      description:
-        "Updated profile image URL. Must be a valid URI.",
+      description: "Updated profile image URL. Must be a valid URI.",
     },
 
     address: {
       type: ["string", "null"],
       example: "123 Main Street, Hyderabad, Telangana, 500001",
+      description: "Updated address. Pass `null` to clear the address.",
+    },
+
+    city: {
+      type: ["string", "null"],
+      example: "Hyderabad",
+      description: "Updated city. Pass `null` to clear the city.",
+    },
+
+    state: {
+      type: ["string", "null"],
+      example: "Telangana",
+      description: "Updated state. Pass `null` to clear the state.",
+    },
+
+    countryCode: {
+      type: ["string", "null"],
+      pattern: "^\\+\\d{1,4}$",
+      example: "+91",
       description:
-        "Updated address. Pass `null` to clear the address.",
+        "Updated dialing code stored in `CustomerProfile.countryCode`. Pass `null` to clear it.",
     },
 
     email: {
@@ -71,12 +89,11 @@ export const CustomerProfileUpdateSchema = {
     properties: {
       email: "email must be a valid email address",
       photoUrl: "photoUrl must be a valid URI",
+      countryCode: "countryCode must be a valid format like +91, +1, etc.",
     },
     additionalProperties: "Additional properties are not allowed",
   },
 };
-
-// src/modules/schemas/customer/profile/customerProfileUpdate.response.schema.ts
 
 export const ResponseSchema = {
   CustomerProfileUpdateResponseSchema: {
@@ -84,9 +101,9 @@ export const ResponseSchema = {
       description:
         "Customer profile updated successfully.\n\n" +
         "Behaviours:\n" +
-        "- If only profile info (name / photo / address) is changed → returns updated customer.\n" +
-        "- If email is changed → an email-change verification link is generated and returned.\n" +
-        "- If phone is changed (via verificationToken) → phone is updated immediately.",
+        "- If only profile info (`fullName`, `photoUrl`, `address`, `city`, `state`, `countryCode`) is changed, returns the updated customer.\n" +
+        "- If email is changed, an email-change verification link is generated and returned.\n" +
+        "- If phone is changed via `verificationToken`, the phone is updated immediately.",
 
       type: "object",
       additionalProperties: false,
@@ -102,7 +119,6 @@ export const ResponseSchema = {
             "Human-readable message. May indicate if email or phone change was performed.",
         },
 
-        // Present when email change flow was triggered
         emailChangeLink: {
           type: ["string", "null"],
           example: null,
@@ -110,7 +126,6 @@ export const ResponseSchema = {
             "Email change verification link. Non-null only when a new email was requested.",
         },
 
-        // True if phone number was updated using a verified token
         phoneChanged: {
           type: "boolean",
           example: false,
@@ -167,7 +182,6 @@ export const ResponseSchema = {
                 "Indicates whether the customer has completed their profile.",
             },
 
-            // Nested CustomerProfile from Prisma include
             CustomerProfile: {
               type: ["object", "null"],
               description:
@@ -184,12 +198,6 @@ export const ResponseSchema = {
                   type: "string",
                   example: "customer-uuid",
                   description: "Customer ID this profile belongs to.",
-                },
-
-                fullName: {
-                  type: "string",
-                  example: "John Doe",
-                  description: "Full name as stored in the profile.",
                 },
 
                 phone: {
@@ -218,6 +226,18 @@ export const ResponseSchema = {
                   description: "Customer address stored in the profile.",
                 },
 
+                city: {
+                  type: ["string", "null"],
+                  example: "Hyderabad",
+                  description: "Customer city stored in the profile.",
+                },
+
+                state: {
+                  type: ["string", "null"],
+                  example: "Telangana",
+                  description: "Customer state stored in the profile.",
+                },
+
                 createdAt: {
                   type: "string",
                   format: "date-time",
@@ -240,7 +260,7 @@ export const ResponseSchema = {
 
     403: {
       description:
-        "Forbidden – typically returned when attempting to change email for an inactive account.",
+        "Forbidden typically returned when attempting to change email for an inactive account.",
       type: "object",
       additionalProperties: false,
       required: ["success", "message"],
@@ -256,7 +276,7 @@ export const ResponseSchema = {
 
     404: {
       description:
-        "Not found – customer or customer profile does not exist for the given customerId.",
+        "Not found customer or customer profile does not exist for the given customerId.",
       type: "object",
       additionalProperties: false,
       required: ["success", "message"],
@@ -272,7 +292,7 @@ export const ResponseSchema = {
 
     409: {
       description:
-        "Conflict – returned when trying to use an email or phone that already belongs to another customer.",
+        "Conflict returned when trying to use an email or phone that already belongs to another customer.",
       type: "object",
       additionalProperties: false,
       required: ["success", "message"],
@@ -287,8 +307,7 @@ export const ResponseSchema = {
     },
 
     500: {
-      description:
-        "Unexpected server error while updating the customer profile.",
+      description: "Unexpected server error while updating the customer profile.",
       type: "object",
       additionalProperties: false,
       required: ["success", "message"],

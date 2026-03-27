@@ -28,18 +28,41 @@ export const CustomerProfileSchema = {
       example: "123 Main Street, Hyderabad, Telangana, 500001",
       description: "Optional address of the customer. Can be left empty.",
     },
+
+    city: {
+      type: "string",
+      nullable: true,
+      example: "Hyderabad",
+      description: "Optional city for the customer profile.",
+    },
+
+    state: {
+      type: "string",
+      nullable: true,
+      example: "Telangana",
+      description: "Optional state for the customer profile.",
+    },
+
+    countryCode: {
+      type: "string",
+      nullable: true,
+      pattern: "^\\+\\d{1,4}$",
+      example: "+91",
+      description:
+        "Optional dialing code stored on the profile. If omitted, Prisma applies the default `+91`.",
+    },
   },
 
   errorMessage: {
     required: {
       photoUrl: "photoUrl is required",
-      verificationToken: "verificationToken (phone verification token) is required",
+      verificationToken:
+        "verificationToken (phone verification token) is required",
     },
-    additionalProperties: "Additional properties are not allowed in the request body",
+    additionalProperties:
+      "Additional properties are not allowed in the request body",
   },
 };
-
-
 
 export const CustomerProfileResponseSchema = {
   200: {
@@ -73,11 +96,12 @@ export const CustomerProfileResponseSchema = {
         required: [
           "id",
           "customerId",
-          "fullName",
           "photoUrl",
           "phone",
           "countryCode",
           "address",
+          "city",
+          "state",
           "createdAt",
           "updatedAt",
           "Customer",
@@ -93,12 +117,6 @@ export const CustomerProfileResponseSchema = {
             type: "string",
             example: "customer-uuid",
             description: "Customer ID this profile belongs to.",
-          },
-
-          fullName: {
-            type: "string",
-            example: "John Doe",
-            description: "Customer's full name as stored in the profile.",
           },
 
           photoUrl: {
@@ -125,6 +143,18 @@ export const CustomerProfileResponseSchema = {
             type: ["string", "null"],
             example: "123 Main Street, Hyderabad, Telangana, 500001",
             description: "Optional customer address.",
+          },
+
+          city: {
+            type: ["string", "null"],
+            example: "Hyderabad",
+            description: "Optional customer city.",
+          },
+
+          state: {
+            type: ["string", "null"],
+            example: "Telangana",
+            description: "Optional customer state.",
           },
 
           createdAt: {
@@ -168,7 +198,7 @@ export const CustomerProfileResponseSchema = {
 
   400: {
     description:
-      "Bad request – validation failed or phone verification token is invalid/expired.\n\n" +
+      "Bad request validation failed or phone verification token is invalid/expired.\n\n" +
       "Returned when:\n" +
       "- Required fields are missing.\n" +
       "- `verificationToken` is missing, invalid, or expired.\n" +
@@ -180,7 +210,8 @@ export const CustomerProfileResponseSchema = {
       success: { type: "boolean", example: false },
       message: {
         type: "string",
-        example: "Phone verification token has expired. Please verify your phone number again.",
+        example:
+          "Phone verification token has expired. Please verify your phone number again.",
       },
     },
   },
@@ -198,7 +229,7 @@ export const CustomerProfileResponseSchema = {
 
   409: {
     description:
-      "Conflict – profile or phone number already used.\n\n" +
+      "Conflict profile or phone number already used.\n\n" +
       "Returned when:\n" +
       "- Customer already has a profile.\n" +
       "- Phone number (from token) is already linked to another profile.",
@@ -209,10 +240,7 @@ export const CustomerProfileResponseSchema = {
       success: { type: "boolean", example: false },
       message: {
         type: "string",
-        example:
-          "Profile already completed." +
-          " / " +
-          "Phone number already in use.",
+        example: "Profile already completed. / Phone number already in use.",
       },
     },
   },
@@ -228,8 +256,7 @@ export const CustomerProfileResponseSchema = {
       success: { type: "boolean", example: false },
       message: {
         type: "string",
-        example:
-          "Customer profile creation failed. Please try again later.",
+        example: "Customer profile creation failed. Please try again later.",
       },
     },
   },

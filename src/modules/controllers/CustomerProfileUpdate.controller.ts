@@ -25,6 +25,7 @@ export const CustomerProfileUpdateController = async (
         message:
           "Email change verification link sent to the new email address. Other profile details were updated successfully (if provided).",
         emailChangeLink,
+        phoneChanged,
         customer,
       });
     }
@@ -34,6 +35,8 @@ export const CustomerProfileUpdateController = async (
       return reply.status(200).send({
         success: true,
         message: "Customer profile updated successfully. Phone number updated.",
+        emailChangeLink,
+        phoneChanged,
         customer,
       });
     }
@@ -42,6 +45,8 @@ export const CustomerProfileUpdateController = async (
     return reply.status(200).send({
       success: true,
       message: "Customer profile updated successfully.",
+      emailChangeLink,
+      phoneChanged,
       customer,
     });
   } catch (err: any) {

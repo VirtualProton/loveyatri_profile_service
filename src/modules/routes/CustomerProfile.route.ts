@@ -31,6 +31,7 @@ const customerProfileRoute: FastifyPluginAsync = async (fastify) => {
         "- Uses `req.user.id` from the access token as the customer id.\n" +
         "- Client must **not** send `customerId` in the request body.\n" +
         "- Uses the phone number from `verificationToken`; client must **not** send phone directly.\n" +
+        "- Optional profile fields may include `address`, `city`, `state`, and `countryCode`.\n" +
         "- Fails if:\n" +
         "  - Customer does not exist (`404`).\n" +
         "  - Customer already has a profile (`409`).\n" +
@@ -71,6 +72,9 @@ const customerProfileRoute: FastifyPluginAsync = async (fastify) => {
           "  - `fullName`\n" +
           "  - `photoUrl`\n" +
           "  - `address`\n" +
+          "  - `city`\n" +
+          "  - `state`\n" +
+          "  - `countryCode`\n" +
           "- Email:\n" +
           "  - Provide a new `email`.\n" +
           "  - Must be unique across all customers.\n" +
@@ -83,7 +87,7 @@ const customerProfileRoute: FastifyPluginAsync = async (fastify) => {
           "### Important rules\n" +
           "- `customerId` is required in the request body.\n" +
           "- You may update **either** email **or** phone in a single request, **not both**.\n" +
-          "- If neither email nor phone is changing, you can still update `fullName`, `photoUrl`, and `address`.\n\n" +
+          "- If neither email nor phone is changing, you can still update `fullName`, `photoUrl`, `address`, `city`, `state`, and `countryCode`.\n\n" +
           "### Responses\n" +
           "- **200 OK**:\n" +
           "  - Returns the updated `customer` with nested `CustomerProfile`.\n" +

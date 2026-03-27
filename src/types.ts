@@ -49,6 +49,9 @@ export type CustomerProfileRequest = FastifyRequest<{
     Body: {
         photoUrl: string;
         address?: string | null;
+        city?: string | null;
+        state?: string | null;
+        countryCode?: string | null;
         verificationToken: string; // required
     };
 }>;
@@ -59,6 +62,9 @@ export type CustomerProfileUpdateRequest = FastifyRequest<{
         fullName?: string;
         photoUrl?: string;
         address?: string | null;
+        city?: string | null;
+        state?: string | null;
+        countryCode?: string | null;
         email?: string;
         verificationToken?: string; // used when changing phone
     };

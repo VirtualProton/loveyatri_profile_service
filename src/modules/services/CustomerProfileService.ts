@@ -9,7 +9,7 @@ type PhoneVerificationTokenPayload = {
   phone: string; // normalized phone with country code, e.g. "919876543210"
 };
 
-const PHONE_VERIFICATION_TOKEN_SECRET = env.JWT_SECRET
+const PHONE_VERIFICATION_TOKEN_SECRET = env.JWT_SECRET;
 
 /**
  * Decode and validate the phone verification token.
@@ -19,7 +19,6 @@ function decodePhoneVerificationToken(
   token: string
 ): PhoneVerificationTokenPayload {
   if (!PHONE_VERIFICATION_TOKEN_SECRET) {
-    // Misconfiguration – treat as server error
     throw new AppError(
       500,
       "Phone verification is temporarily unavailable. Please try again later."
@@ -36,7 +35,8 @@ function decodePhoneVerificationToken(
       throw new AppError(400, "Invalid phone verification token.");
     }
 
-    const { isVerified, phone } = decoded as Partial<PhoneVerificationTokenPayload>;
+    const { isVerified, phone } =
+      decoded as Partial<PhoneVerificationTokenPayload>;
 
     if (typeof isVerified !== "boolean" || typeof phone !== "string") {
       throw new AppError(400, "Invalid phone verification token payload.");
@@ -47,7 +47,6 @@ function decodePhoneVerificationToken(
       phone: phone.trim(),
     };
   } catch (err: any) {
-    // Token-specific errors (expired, malformed, etc.)
     if (err?.name === "TokenExpiredError") {
       throw new AppError(
         400,
@@ -63,25 +62,76 @@ function decodePhoneVerificationToken(
   }
 }
 
+function normalizeNullableText(value: string | null | undefined) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+function normalizeCountryCode(value: string | null | undefined) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const normalized = trimmed.startsWith("+")
+    ? `+${trimmed.slice(1).replace(/\D/g, "")}`
+    : `+${trimmed.replace(/\D/g, "")}`;
+
+  if (!/^\+\d{1,4}$/.test(normalized)) {
+    throw new AppError(400, "Invalid country code. It must be like +91, +1, etc.");
+  }
+
+  return normalized;
+}
+
 export type CreateCustomerProfileInput = {
   customerId: string;
   photoUrl: string;
   address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  countryCode?: string | null;
   verificationToken?: string;
 };
 
 export const CustomerProfileService = async (
   data: CreateCustomerProfileInput
 ) => {
-  const { customerId, photoUrl, address, verificationToken } = data;
+  const {
+    customerId,
+    photoUrl,
+    address,
+    city,
+    state,
+    countryCode,
+    verificationToken,
+  } = data;
 
   try {
-    // 1️⃣ Basic input validation (defensive, even if you validate at controller/schema level)
     if (!customerId || typeof customerId !== "string") {
       throw new AppError(400, "Valid customerId is required.");
     }
 
     if (!photoUrl || typeof photoUrl !== "string") {
+      throw new AppError(400, "Valid photoUrl is required.");
+    }
+
+    const normalizedPhotoUrl = photoUrl.trim();
+
+    if (!normalizedPhotoUrl) {
       throw new AppError(400, "Valid photoUrl is required.");
     }
 
@@ -92,7 +142,6 @@ export const CustomerProfileService = async (
       );
     }
 
-    // 2️⃣ Decode / verify token → { isVerified, phone }
     const { isVerified, phone } = decodePhoneVerificationToken(
       verificationToken
     );
@@ -111,17 +160,17 @@ export const CustomerProfileService = async (
       );
     }
 
-    const normalizedPhone = phone.trim(); // assume token already stores normalized phone
+    const normalizedPhone = phone.trim();
+    const normalizedAddress = normalizeNullableText(address);
+    const normalizedCity = normalizeNullableText(city);
+    const normalizedState = normalizeNullableText(state);
+    const normalizedCountryCode = normalizeCountryCode(countryCode);
 
-    // 3️⃣ Main transactional logic
     const profile = await prisma.$transaction(async (tx) => {
-      // 3.1 Load customer
       const existingCustomer = await tx.customer.findUnique({
         where: { id: customerId },
         select: {
           isProfileComplete: true,
-          fullName: true,
-          email: true,
         },
       });
 
@@ -133,7 +182,6 @@ export const CustomerProfileService = async (
         throw new AppError(409, "Profile already completed.");
       }
 
-      // 3.2 Ensure phone is not already used (logical pre-check)
       const phoneExists = await tx.customerProfile.findUnique({
         where: { phone: normalizedPhone },
         select: { id: true },
@@ -143,14 +191,17 @@ export const CustomerProfileService = async (
         throw new AppError(409, "Phone number already in use.");
       }
 
-      // 3.3 Create profile
       const createdProfile = await tx.customerProfile.create({
         data: {
           customerId,
-          photoUrl,
+          photoUrl: normalizedPhotoUrl,
           phone: normalizedPhone,
-          // countryCode will default to "+91"
-          address: address ?? null,
+          ...(normalizedCountryCode !== undefined
+            ? { countryCode: normalizedCountryCode }
+            : {}),
+          address: normalizedAddress ?? null,
+          city: normalizedCity ?? null,
+          state: normalizedState ?? null,
         },
         include: {
           Customer: {
@@ -162,7 +213,6 @@ export const CustomerProfileService = async (
         },
       });
 
-      // 3.4 Mark customer as active + profile complete
       await tx.customer.update({
         where: { id: customerId },
         data: {
@@ -176,20 +226,15 @@ export const CustomerProfileService = async (
 
     return profile;
   } catch (err: any) {
-    // 4️⃣ Known application errors
     if (err instanceof AppError) {
       throw err;
     }
 
-    // 5️⃣ Prisma known request errors (e.g. unique constraint)
     if (err instanceof Prisma.PrismaClientKnownRequestError) {
-      // Unique constraint violation
       if (err.code === "P2002") {
         const target = (err.meta?.target ?? "") as string | string[];
-
         const targets = Array.isArray(target) ? target : [target];
 
-        // Check which unique field failed (phone / customerId)
         if (targets.some((t) => t.includes("phone"))) {
           throw new AppError(409, "Phone number already in use.");
         }
@@ -198,19 +243,15 @@ export const CustomerProfileService = async (
           throw new AppError(409, "Customer already has a profile.");
         }
 
-        // Fallback for other unique constraints
         throw new AppError(409, "Resource already exists.");
       }
 
-      // Other Prisma known errors can be mapped here if needed
       throw new AppError(
         500,
         "Database error while creating customer profile."
       );
     }
 
-    // 6️⃣ Unknown/unexpected errors – log & wrap
-    // You can replace console.error with your logger
     console.error("CustomerProfileService unexpected error:", err);
 
     throw new AppError(

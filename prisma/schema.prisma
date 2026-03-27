@@ -29,6 +29,7 @@ model Admin {
   updatedAt                                             DateTime                   @updatedAt
   resetPasswordVersion                                  Int                        @default(0)
   emailVerifyVersion                                    Int                        @default(0)
+  AdminBankDetail                                       AdminBankDetail?
   profile                                               AdminProfile?              @relation("AdminProfile")
   AdminSettlementLedger                                 AdminSettlementLedger[]
   AdminSuperAdminTransfer                               AdminSuperAdminTransfer[]
@@ -337,6 +338,8 @@ model CustomerProfile {
   phone       String   @unique
   countryCode String?  @default("+91")
   address     String?  @db.Text
+  city        String?
+  state       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   Customer    Customer @relation(fields: [customerId], references: [id])
@@ -1073,6 +1076,41 @@ model BookingInvoice {
   @@index([propertyId, issuedAt])
 }
 
+model AdminBankDetail {
+  id                  String                              @id
+  adminId             String                              @unique
+  accountHolderName   String
+  accountNumberMasked String
+  accountNumberLast4  String                              @db.Char(4)
+  ifscCode            String                              @db.Char(11)
+  bankName            String?
+  verificationStatus  AdminBankDetail_verificationStatus  @default(PENDING)
+  verificationMethod  AdminBankDetail_verificationMethod?
+  provider            AdminBankDetail_provider?
+  providerStatus      String?
+  validationId        String?                             @unique
+  fundAccountId       String?                             @unique
+  contactId           String?
+  referenceId         String?
+  utr                 String?
+  registeredName      String?
+  nameMatchScore      Float?
+  isNameMatch         Boolean?
+  accountStatus       String?
+  verifiedAt          DateTime?
+  lastVerificationAt  DateTime?
+  rawVerificationJson String?                             @db.LongText
+  createdAt           DateTime                            @default(now())
+  updatedAt           DateTime
+  deletedAt           DateTime?
+  isDeleted           Boolean                             @default(false)
+  Admin               Admin                               @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([isDeleted])
+  @@index([provider, verificationStatus])
+  @@index([verificationStatus])
+}
+
 enum AdminRole {
   SUPER_ADMIN
   ADMIN
@@ -1374,4 +1412,21 @@ enum BookingInvoice_status {
   PARTIALLY_REFUNDED
   FULLY_REFUNDED
   CANCELLED
+}
+
+enum AdminBankDetail_verificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+enum AdminBankDetail_verificationMethod {
+  RAZORPAY_PENNY_DROP
+  MANUAL
+}
+
+enum AdminBankDetail_provider {
+  RAZORPAY
+  MANUAL
+  OTHER
 }

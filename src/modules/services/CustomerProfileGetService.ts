@@ -21,6 +21,8 @@ export const CustomerProfileGetService = async (customerId: string) => {
             phone: true,
             countryCode: true,
             address: true,
+            city: true,
+            state: true,
             createdAt: true,
             updatedAt: true,
           },
