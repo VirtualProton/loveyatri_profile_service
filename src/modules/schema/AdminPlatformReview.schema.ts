@@ -51,6 +51,47 @@ const platformReviewDataSchema = {
   properties: platformReviewDataProperties,
 };
 
+const platformReviewReadDataSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "id",
+    "rating",
+    "title",
+    "review",
+    "isDeleted",
+    "deletedAt",
+    "createdByAdminId",
+    "updatedByAdminId",
+    "deletedByAdminId",
+    "createdAt",
+    "updatedAt",
+    "admin",
+  ],
+  properties: {
+    ...platformReviewDataProperties,
+    admin: {
+      type: "object",
+      additionalProperties: false,
+      required: ["fullName", "city", "photoUrl"],
+      properties: {
+        fullName: {
+          type: "string",
+          example: "Aman Sharma",
+        },
+        city: {
+          type: ["string", "null"],
+          example: "Mumbai",
+        },
+        photoUrl: {
+          type: ["string", "null"],
+          example: "https://example.com/admin-profile.jpg",
+        },
+      },
+    },
+  },
+};
+
 export const PlatformReviewParamsSchema = {
   type: "object",
   required: ["reviewId"],
@@ -222,6 +263,38 @@ export const DeletePlatformReviewResponseSchema = {
   },
   401: PlatformReviewResponseSchema[401],
   403: PlatformReviewResponseSchema[403],
+  404: PlatformReviewResponseSchema[404],
+  500: PlatformReviewResponseSchema[500],
+};
+
+export const PlatformReviewListResponseSchema = {
+  200: {
+    type: "object",
+    additionalProperties: false,
+    required: ["success", "message", "data"],
+    properties: {
+      success: { type: "boolean", example: true },
+      message: { type: "string", example: "Platform reviews fetched successfully." },
+      data: {
+        type: "array",
+        items: platformReviewReadDataSchema,
+      },
+    },
+  },
+  500: PlatformReviewResponseSchema[500],
+};
+
+export const PlatformReviewDetailResponseSchema = {
+  200: {
+    type: "object",
+    additionalProperties: false,
+    required: ["success", "message", "data"],
+    properties: {
+      success: { type: "boolean", example: true },
+      message: { type: "string", example: "Platform review fetched successfully." },
+      data: platformReviewReadDataSchema,
+    },
+  },
   404: PlatformReviewResponseSchema[404],
   500: PlatformReviewResponseSchema[500],
 };

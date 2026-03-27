@@ -5,6 +5,7 @@ export type OwnerProfileRequestBody = {
   photoUrl: string;
   preferredLanguage: string;
   shortBio?: string;
+  city?: string;
 
   // 🔐 Phone verification token (can come from header, body optional fallback)
   phoneVerificationToken?: string;
@@ -30,6 +31,7 @@ export type OwnerProfileUpdateRequestBody = {
   photoUrl?: string | null;
   preferredLanguage?: string | null;
   shortBio?: string | null;
+  city?: string | null;
   phoneVerificationToken?: string | null;
 
   countryCode?: string | null;
@@ -100,6 +102,8 @@ export type DeletePlatformReviewRequest = FastifyRequest<{
         reviewId: string;
     };
 }>;
+
+export type ListPlatformReviewsRequest = FastifyRequest;
 
 export type EmailChangeTokenPayload = {
     adminId?: string;

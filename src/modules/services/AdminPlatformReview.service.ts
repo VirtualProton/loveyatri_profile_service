@@ -16,6 +16,46 @@ const platformReviewSelect = {
   updatedAt: true,
 } satisfies Prisma.PlatformReviewSelect;
 
+const platformReviewWithAdminSelect = {
+  ...platformReviewSelect,
+  createdByAdmin: {
+    select: {
+      fullName: true,
+      profile: {
+        select: {
+          city: true,
+          photoUrl: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.PlatformReviewSelect;
+
+function mapPlatformReviewForRead(
+  platformReview: Prisma.PlatformReviewGetPayload<{
+    select: typeof platformReviewWithAdminSelect;
+  }>
+) {
+  return {
+    id: platformReview.id,
+    rating: platformReview.rating,
+    title: platformReview.title,
+    review: platformReview.review,
+    isDeleted: platformReview.isDeleted,
+    deletedAt: platformReview.deletedAt,
+    createdByAdminId: platformReview.createdByAdminId,
+    updatedByAdminId: platformReview.updatedByAdminId,
+    deletedByAdminId: platformReview.deletedByAdminId,
+    createdAt: platformReview.createdAt,
+    updatedAt: platformReview.updatedAt,
+    admin: {
+      fullName: platformReview.createdByAdmin.fullName,
+      city: platformReview.createdByAdmin.profile?.city ?? null,
+      photoUrl: platformReview.createdByAdmin.profile?.photoUrl ?? null,
+    },
+  };
+}
+
 function normalizeRating(rating: number | undefined, required = false) {
   if (rating === undefined) {
     if (required) {
@@ -218,6 +258,66 @@ export const deletePlatformReviewService = async (data: {
     throw new AppError(
       500,
       "Failed to delete platform review: " + (err?.message || "Unexpected error")
+    );
+  }
+};
+
+export const listPlatformReviewsService = async () => {
+  try {
+    const platformReviews = await prisma.platformReview.findMany({
+      where: {
+        isDeleted: false,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      select: platformReviewWithAdminSelect,
+    });
+
+    return platformReviews.map(mapPlatformReviewForRead);
+  } catch (err: any) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      throw new AppError(500, "Database error while fetching platform reviews.");
+    }
+
+    throw new AppError(
+      500,
+      "Failed to fetch platform reviews: " + (err?.message || "Unexpected error")
+    );
+  }
+};
+
+export const getPlatformReviewByIdService = async (reviewId: string) => {
+  try {
+    const platformReview = await prisma.platformReview.findFirst({
+      where: {
+        id: reviewId,
+        isDeleted: false,
+      },
+      select: platformReviewWithAdminSelect,
+    });
+
+    if (!platformReview) {
+      throw new AppError(404, "Platform review not found.");
+    }
+
+    return mapPlatformReviewForRead(platformReview);
+  } catch (err: any) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      throw new AppError(500, "Database error while fetching platform review.");
+    }
+
+    throw new AppError(
+      500,
+      "Failed to fetch platform review: " + (err?.message || "Unexpected error")
     );
   }
 };

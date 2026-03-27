@@ -38,6 +38,13 @@ export const OwnerProfileBodySchema = {
             description: "Short description/bio of the owner.",
         },
 
+        city: {
+            type: "string",
+            nullable: true,
+            example: "Mumbai",
+            description: "Owner city.",
+        },
+
         // 🔐 Phone verification token (JWT from OTP verification step)
         phoneVerificationToken: {
             type: "string",
@@ -193,6 +200,12 @@ export const OwnerProfileUpdateSchema = {
         "Send null to clear short bio.",
     },
 
+    city: {
+      type: ["string", "null"],
+      example: "Mumbai",
+      description: "Owner city. Send null to clear the city.",
+    },
+
     // 🔐 Phone change via OTP verification token
     phoneVerificationToken: {
       type: ["string", "null"],
@@ -255,6 +268,7 @@ export const OwnerProfileUpdateSchema = {
     { required: ["photoUrl"] },
     { required: ["preferredLanguage"] },
     { required: ["shortBio"] },
+    { required: ["city"] },
     { required: ["phoneVerificationToken"] },
     { required: ["countryCode"] },
     { required: ["isGstRegistered"] },
@@ -410,6 +424,10 @@ export const ResponseSchema = {
                         shortBio: {
                             type: ["string", "null"],
                             example: "Property owner based in Mumbai",
+                        },
+                        city: {
+                            type: ["string", "null"],
+                            example: "Mumbai",
                         },
                         photoUrl: {
                             type: "string",
@@ -618,6 +636,11 @@ UpdateOwnerProfileResponseSchema : {
                 type: "string",
                 example: "+91",
                 description: "Country calling code (non-null in DB).",
+              },
+
+              city: {
+                type: ["string", "null"],
+                example: "Mumbai",
               },
 
               preferredLanguage: {
@@ -948,6 +971,7 @@ UpdateOwnerProfileResponseSchema : {
                                 "photoUrl",
                                 "phone",
                                 "countryCode",
+                                "city",
                                 "preferredLanguage",
                                 "shortBio",
                                 "adminId",
@@ -986,6 +1010,10 @@ UpdateOwnerProfileResponseSchema : {
                                 countryCode: {
                                     type: ["string", "null"],
                                     example: "US",
+                                },
+                                city: {
+                                    type: ["string", "null"],
+                                    example: "Mumbai",
                                 },
                                 preferredLanguage: {
                                     type: "string",

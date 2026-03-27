@@ -89,6 +89,7 @@ export const OwnerProfileService = async (data: {
     photoUrl: string;
     preferredLanguage: string; // will be validated/cast to enum
     shortBio?: string | null;
+    city?: string | null;
 
     // 🔐 Phone verification token (from controller)
     phoneVerificationToken?: string;
@@ -110,6 +111,7 @@ export const OwnerProfileService = async (data: {
             photoUrl,
             preferredLanguage,
             shortBio,
+            city,
             phoneVerificationToken,
             countryCode,
             isGstRegistered,
@@ -168,6 +170,10 @@ export const OwnerProfileService = async (data: {
 
         if (shortBio !== undefined && shortBio !== null) {
             shortBio = shortBio.toString().trim() || null;
+        }
+
+        if (city !== undefined && city !== null) {
+            city = city.toString().trim() || null;
         }
 
         if (pincode !== undefined && pincode !== null) {
@@ -349,6 +355,7 @@ export const OwnerProfileService = async (data: {
                     adminId,
                     phone,
                     photoUrl,
+                    city: city ?? null,
                     preferredLanguage: preferredLanguage as any,
                     shortBio: shortBio ?? null,
 
@@ -457,6 +464,7 @@ type OwnerProfileUpdateData = {
   photoUrl?: string | null;
   preferredLanguage?: string | null;
   shortBio?: string | null;
+  city?: string | null;
 
   // 🔐 Phone verification token (from OTP verification step)
   phoneVerificationToken?: string | null;
@@ -484,6 +492,7 @@ export const UpdateOwnerProfileService = async (
       photoUrl,
       preferredLanguage,
       shortBio,
+      city,
       phoneVerificationToken,
 
       countryCode,
@@ -626,6 +635,15 @@ export const UpdateOwnerProfileService = async (
         } else {
           const trimmed = shortBio.toString().trim();
           adminProfileUpdateData.shortBio = trimmed || null;
+        }
+      }
+
+      if (city !== undefined) {
+        if (city === null) {
+          adminProfileUpdateData.city = null;
+        } else {
+          const trimmed = city.toString().trim();
+          adminProfileUpdateData.city = trimmed || null;
         }
       }
 
@@ -1115,6 +1133,7 @@ export const getOwnerProfileService = async (adminId: string) => {
                         photoUrl: true,
                         phone: true,
                         countryCode: true,
+                        city: true,
                         preferredLanguage: true,
                         shortBio: true,
                         commissionPercentOverride: true,

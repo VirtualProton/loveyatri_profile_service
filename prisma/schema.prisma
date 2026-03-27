@@ -70,6 +70,7 @@ model AdminProfile {
   photoUrl                  String
   phone                     String            @unique
   countryCode               String            @default("+91")
+  city                      String?
   preferredLanguage         PreferredLanguage @default(EN)
   shortBio                  String?           @db.Text
   createdAt                 DateTime          @default(now())
