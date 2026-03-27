@@ -54,11 +54,14 @@ model Admin {
   HomePageBanner_HomePageBanner_deletedByAdminIdToAdmin HomePageBanner[]           @relation("HomePageBanner_deletedByAdminIdToAdmin")
   HomePageBanner_HomePageBanner_updatedByAdminIdToAdmin HomePageBanner[]           @relation("HomePageBanner_updatedByAdminIdToAdmin")
   InventoryBlock                                        InventoryBlock[]
+  createdPlatformReviews                                PlatformReview[]           @relation("PlatformReview_createdByAdminIdToAdmin")
+  deletedPlatformReviews                                PlatformReview[]           @relation("PlatformReview_deletedByAdminIdToAdmin")
   PlatformCommissionConfig                              PlatformCommissionConfig[]
   properties                                            Property[]
   RefundSettlement                                      RefundSettlement[]
   RefundSettlementPayment                               RefundSettlementPayment[]
   staff                                                 Staff[]                    @relation("AdminStaff")
+  updatedPlatformReviews                                PlatformReview[]           @relation("PlatformReview_updatedByAdminIdToAdmin")
 }
 
 model AdminProfile {
@@ -280,6 +283,30 @@ model PropertyReview {
   @@index([propertyId])
   @@index([customerId])
   @@index([rating])
+}
+
+model PlatformReview {
+  id               String    @id @default(uuid())
+  rating           Int
+  title            String    @db.VarChar(255)
+  review           String    @db.Text
+  isDeleted        Boolean   @default(false)
+  deletedAt        DateTime?
+  createdByAdminId String
+  updatedByAdminId String?
+  deletedByAdminId String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  createdByAdmin   Admin     @relation("PlatformReview_createdByAdminIdToAdmin", fields: [createdByAdminId], references: [id])
+  updatedByAdmin   Admin?    @relation("PlatformReview_updatedByAdminIdToAdmin", fields: [updatedByAdminId], references: [id])
+  deletedByAdmin   Admin?    @relation("PlatformReview_deletedByAdminIdToAdmin", fields: [deletedByAdminId], references: [id])
+
+  @@index([createdByAdminId], map: "PlatformReview_createdByAdminId_fkey")
+  @@index([deletedByAdminId], map: "PlatformReview_deletedByAdminId_fkey")
+  @@index([isDeleted])
+  @@index([isDeleted, createdAt])
+  @@index([rating])
+  @@index([updatedByAdminId], map: "PlatformReview_updatedByAdminId_fkey")
 }
 
 model UnitPriceRule {

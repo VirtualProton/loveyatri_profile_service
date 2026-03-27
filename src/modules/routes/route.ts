@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import ownerProfileRoute from "./OwnerProfile.route.js";
 import customerProfileRoute from "./CustomerProfile.route.js";
+import adminPlatformReviewRoute from "./AdminPlatformReview.route.js";
 
 const routes: FastifyPluginAsync = async (fastify) => {
 
@@ -20,6 +21,10 @@ const routes: FastifyPluginAsync = async (fastify) => {
 
   await fastify.register(customerProfileRoute, {
     prefix: "/customer",
+  });
+
+  await fastify.register(adminPlatformReviewRoute, {
+    prefix: "/admin/platform-reviews",
   });
 };
  

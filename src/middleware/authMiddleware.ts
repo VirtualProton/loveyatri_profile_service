@@ -72,3 +72,24 @@ export const authenticateToken = async (
         });
     }
 };
+
+const ADMIN_ROLES = new Set(["ADMIN", "SUPER_ADMIN"]);
+
+export const requireAdminRole = async (
+    req: FastifyRequest,
+    reply: FastifyReply
+) => {
+    if (!req.user?.id) {
+        return reply.status(401).send({
+            success: false,
+            message: "Authentication required",
+        });
+    }
+
+    if (!ADMIN_ROLES.has(req.user.role)) {
+        return reply.status(403).send({
+            success: false,
+            message: "Admin access required",
+        });
+    }
+};

@@ -75,6 +75,32 @@ export type CustomerProfileGetRequest = FastifyRequest<{
         customerId: string;
     };
 }>;
+
+export type CreatePlatformReviewRequest = FastifyRequest<{
+    Body: {
+        rating: number;
+        title: string;
+        review: string;
+    };
+}>;
+
+export type UpdatePlatformReviewRequest = FastifyRequest<{
+    Params: {
+        reviewId: string;
+    };
+    Body: {
+        rating?: number;
+        title?: string;
+        review?: string;
+    };
+}>;
+
+export type DeletePlatformReviewRequest = FastifyRequest<{
+    Params: {
+        reviewId: string;
+    };
+}>;
+
 export type EmailChangeTokenPayload = {
     adminId?: string;
     ownerId?: string;
