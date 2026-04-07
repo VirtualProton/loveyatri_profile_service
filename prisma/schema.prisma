@@ -17,51 +17,37 @@ model TokenBlacklist {
 }
 
 model Admin {
-  id                                                    String                     @id @default(uuid())
-  role                                                  AdminRole                  @default(ADMIN)
-  fullName                                              String
-  email                                                 String                     @unique
-  passwordHash                                          String
-  permissions                                           Json?
-  isActive                                              Boolean                    @default(false)
-  isProfileComplete                                     Boolean                    @default(false)
-  createdAt                                             DateTime                   @default(now())
-  updatedAt                                             DateTime                   @updatedAt
-  resetPasswordVersion                                  Int                        @default(0)
-  emailVerifyVersion                                    Int                        @default(0)
-  AdminBankDetail                                       AdminBankDetail?
-  profile                                               AdminProfile?              @relation("AdminProfile")
-  AdminSettlementLedger                                 AdminSettlementLedger[]
-  AdminSuperAdminTransfer                               AdminSuperAdminTransfer[]
-  BlogPost                                              BlogPost[]
-  Booking                                               Booking[]
-  Booking_Booking_createdByAdminIdToAdmin               Booking[]                  @relation("Booking_createdByAdminIdToAdmin")
-  BookingCreditNote                                     BookingCreditNote[]
-  BookingInvoice                                        BookingInvoice[]
-  BookingPayment                                        BookingPayment[]
-  CmsPage_CmsPage_createdByAdminIdToAdmin               CmsPage[]                  @relation("CmsPage_createdByAdminIdToAdmin")
-  CmsPage_CmsPage_deletedByAdminIdToAdmin               CmsPage[]                  @relation("CmsPage_deletedByAdminIdToAdmin")
-  CmsPage_CmsPage_updatedByAdminIdToAdmin               CmsPage[]                  @relation("CmsPage_updatedByAdminIdToAdmin")
-  Coupon_Coupon_adminIdToAdmin                          Coupon[]                   @relation("Coupon_adminIdToAdmin")
-  Coupon_Coupon_createdByAdminIdToAdmin                 Coupon[]                   @relation("Coupon_createdByAdminIdToAdmin")
-  Faq_Faq_createdByAdminIdToAdmin                       Faq[]                      @relation("Faq_createdByAdminIdToAdmin")
-  Faq_Faq_deletedByAdminIdToAdmin                       Faq[]                      @relation("Faq_deletedByAdminIdToAdmin")
-  Faq_Faq_updatedByAdminIdToAdmin                       Faq[]                      @relation("Faq_updatedByAdminIdToAdmin")
-  GstSlab_GstSlab_createdByAdminIdToAdmin               GstSlab[]                  @relation("GstSlab_createdByAdminIdToAdmin")
-  GstSlab_GstSlab_deletedByAdminIdToAdmin               GstSlab[]                  @relation("GstSlab_deletedByAdminIdToAdmin")
-  GstSlab_GstSlab_updatedByAdminIdToAdmin               GstSlab[]                  @relation("GstSlab_updatedByAdminIdToAdmin")
-  HomePageBanner_HomePageBanner_createdByAdminIdToAdmin HomePageBanner[]           @relation("HomePageBanner_createdByAdminIdToAdmin")
-  HomePageBanner_HomePageBanner_deletedByAdminIdToAdmin HomePageBanner[]           @relation("HomePageBanner_deletedByAdminIdToAdmin")
-  HomePageBanner_HomePageBanner_updatedByAdminIdToAdmin HomePageBanner[]           @relation("HomePageBanner_updatedByAdminIdToAdmin")
-  InventoryBlock                                        InventoryBlock[]
-  createdPlatformReviews                                PlatformReview[]           @relation("PlatformReview_createdByAdminIdToAdmin")
-  deletedPlatformReviews                                PlatformReview[]           @relation("PlatformReview_deletedByAdminIdToAdmin")
-  PlatformCommissionConfig                              PlatformCommissionConfig[]
-  properties                                            Property[]
-  RefundSettlement                                      RefundSettlement[]
-  RefundSettlementPayment                               RefundSettlementPayment[]
-  staff                                                 Staff[]                    @relation("AdminStaff")
-  updatedPlatformReviews                                PlatformReview[]           @relation("PlatformReview_updatedByAdminIdToAdmin")
+  id                                      String                    @id @default(uuid())
+  userCode                                String
+  fullName                                String
+  email                                   String                    @unique
+  passwordHash                            String
+  permissions                             Json?
+  isActive                                Boolean                   @default(false)
+  isProfileComplete                       Boolean                   @default(false)
+  createdAt                               DateTime                  @default(now())
+  updatedAt                               DateTime                  @updatedAt
+  resetPasswordVersion                    Int                       @default(0)
+  emailVerifyVersion                      Int                       @default(0)
+  AdminBankDetail                         AdminBankDetail?
+  profile                                 AdminProfile?             @relation("AdminProfile")
+  AdminSettlementLedger                   AdminSettlementLedger[]
+  AdminSuperAdminTransfer                 AdminSuperAdminTransfer[]
+  Booking                                 Booking[]
+  Booking_Booking_createdByAdminIdToAdmin Booking[]                 @relation("Booking_createdByAdminIdToAdmin")
+  BookingCreditNote                       BookingCreditNote[]
+  BookingInvoice                          BookingInvoice[]
+  BookingPayment                          BookingPayment[]
+  Coupon_Coupon_adminIdToAdmin            Coupon[]                  @relation("Coupon_adminIdToAdmin")
+  Coupon_Coupon_createdByAdminIdToAdmin   Coupon[]                  @relation("Coupon_createdByAdminIdToAdmin")
+  InventoryBlock                          InventoryBlock[]
+  createdPlatformReviews                  PlatformReview[]          @relation("PlatformReview_createdByAdminIdToAdmin")
+  deletedPlatformReviews                  PlatformReview[]          @relation("PlatformReview_deletedByAdminIdToAdmin")
+  updatedPlatformReviews                  PlatformReview[]          @relation("PlatformReview_updatedByAdminIdToAdmin")
+  properties                              Property[]
+  RefundSettlement                        RefundSettlement[]
+  RefundSettlementPayment                 RefundSettlementPayment[]
+  staff                                   Staff[]                   @relation("AdminStaff")
 }
 
 model AdminProfile {
@@ -70,7 +56,6 @@ model AdminProfile {
   photoUrl                  String
   phone                     String            @unique
   countryCode               String            @default("+91")
-  city                      String?
   preferredLanguage         PreferredLanguage @default(EN)
   shortBio                  String?           @db.Text
   createdAt                 DateTime          @default(now())
@@ -86,6 +71,7 @@ model AdminProfile {
   gstStateCode              String?
   isGstRegistered           Boolean           @default(false)
   pincode                   String?
+  city                      String?
   admin                     Admin             @relation("AdminProfile", fields: [adminId], references: [id])
 }
 
@@ -146,6 +132,7 @@ model Property {
   BookingRoomAssignment     BookingRoomAssignment[]
   Coupon                    Coupon[]
   customAmenities           CustomAmenity[]
+  CustomerWishlist          CustomerWishlist[]
   InventoryBlock            InventoryBlock[]
   policies                  Policy[]
   admin                     Admin                   @relation(fields: [adminId], references: [id], onDelete: Cascade)
@@ -299,8 +286,8 @@ model PlatformReview {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   createdByAdmin   Admin     @relation("PlatformReview_createdByAdminIdToAdmin", fields: [createdByAdminId], references: [id])
-  updatedByAdmin   Admin?    @relation("PlatformReview_updatedByAdminIdToAdmin", fields: [updatedByAdminId], references: [id])
   deletedByAdmin   Admin?    @relation("PlatformReview_deletedByAdminIdToAdmin", fields: [deletedByAdminId], references: [id])
+  updatedByAdmin   Admin?    @relation("PlatformReview_updatedByAdminIdToAdmin", fields: [updatedByAdminId], references: [id])
 
   @@index([createdByAdminId], map: "PlatformReview_createdByAdminId_fkey")
   @@index([deletedByAdminId], map: "PlatformReview_deletedByAdminId_fkey")
@@ -356,6 +343,7 @@ model Customer {
   CouponCustomerEligibility CouponCustomerEligibility[]
   CouponUsage               CouponUsage[]
   CustomerProfile           CustomerProfile?
+  CustomerWishlist          CustomerWishlist[]
   reviews                   PropertyReview[]
 }
 
@@ -366,10 +354,10 @@ model CustomerProfile {
   phone       String   @unique
   countryCode String?  @default("+91")
   address     String?  @db.Text
-  city        String?
-  state       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  city        String?
+  state       String?
   Customer    Customer @relation(fields: [customerId], references: [id])
 }
 
@@ -379,7 +367,8 @@ model Coupon {
   scope                                Coupon_scope
   adminId                              String?
   propertyId                           String?
-  createdByAdminId                     String
+  createdByAdminId                     String?
+  createdBySuperAdminId                String?
   targetType                           Coupon_targetType           @default(ALL_CUSTOMERS)
   discountType                         Coupon_discountType
   discountValue                        Float
@@ -398,7 +387,8 @@ model Coupon {
   bookingChannel                       Coupon_bookingChannel       @default(ONLINE)
   Booking                              Booking[]
   Admin_Coupon_adminIdToAdmin          Admin?                      @relation("Coupon_adminIdToAdmin", fields: [adminId], references: [id])
-  Admin_Coupon_createdByAdminIdToAdmin Admin                       @relation("Coupon_createdByAdminIdToAdmin", fields: [createdByAdminId], references: [id])
+  Admin_Coupon_createdByAdminIdToAdmin Admin?                      @relation("Coupon_createdByAdminIdToAdmin", fields: [createdByAdminId], references: [id])
+  SuperAdmin                           SuperAdmin?                 @relation(fields: [createdBySuperAdminId], references: [id])
   Property                             Property?                   @relation(fields: [propertyId], references: [id])
   CouponCustomerEligibility            CouponCustomerEligibility[]
   CouponUsage                          CouponUsage[]
@@ -410,6 +400,7 @@ model Coupon {
   @@index([scope])
   @@index([status])
   @@index([status, validFrom, validTo])
+  @@index([createdBySuperAdminId], map: "Coupon_createdBySuperAdminId_fkey")
 }
 
 model CouponCustomerEligibility {
@@ -452,14 +443,14 @@ model EmailLog {
 }
 
 model PlatformCommissionConfig {
-  id                       String   @id @default("platform-commission")
-  defaultCommissionPercent Float    @default(15)
-  createdAt                DateTime @default(now())
+  id                       String      @id @default("platform-commission")
+  defaultCommissionPercent Float       @default(15)
+  createdAt                DateTime    @default(now())
   updatedAt                DateTime
-  updatedByAdminId         String?
-  Admin                    Admin?   @relation(fields: [updatedByAdminId], references: [id])
+  updatedBySuperAdminId    String?
+  SuperAdmin               SuperAdmin? @relation(fields: [updatedBySuperAdminId], references: [id])
 
-  @@index([updatedByAdminId], map: "PlatformCommissionConfig_updatedByAdminId_fkey")
+  @@index([updatedBySuperAdminId], map: "PlatformCommissionConfig_updatedBySuperAdminId_fkey")
 }
 
 model Booking {
@@ -513,6 +504,10 @@ model Booking {
   corporateName                         String?
   corporateReference                    String?
   taxPercent                            Float                       @default(0)
+  cancelVoucharPdfUrl                   String?
+  cancelVoucharS3Key                    String?
+  confirmVoucharPdfUrl                  String?
+  confirmVoucharS3Key                   String?
   AdminSettlementLedger                 AdminSettlementLedger?
   Admin                                 Admin                       @relation(fields: [adminId], references: [id])
   Coupon                                Coupon?                     @relation(fields: [couponId], references: [id])
@@ -557,6 +552,8 @@ model BookingPayment {
   rawResponseJson  String?                 @db.LongText
   createdAt        DateTime                @default(now())
   updatedAt        DateTime
+  receiptFileUrl   String?                 @db.VarChar(512)
+  receiptS3Key     String?                 @db.VarChar(512)
   Admin            Admin                   @relation(fields: [adminId], references: [id])
   Booking          Booking                 @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   Customer         Customer?               @relation(fields: [customerId], references: [id])
@@ -736,27 +733,27 @@ model AdminSuperAdminTransferPayment {
 }
 
 model BlogPost {
-  id            String          @id
-  title         String
-  slug          String          @unique
-  excerpt       String?         @db.Text
-  content       String          @db.LongText
-  coverImage    String?
-  status        BlogPost_status @default(DRAFT)
-  views         Int             @default(0)
-  publishedAt   DateTime?
-  createdBy     String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime
-  isDeleted     Boolean         @default(false)
-  deletedAt     DateTime?
-  deletedBy     String?
-  Admin         Admin?          @relation(fields: [createdBy], references: [id])
-  BlogPostImage BlogPostImage[]
+  id                    String          @id
+  title                 String
+  slug                  String          @unique
+  excerpt               String?         @db.Text
+  content               String          @db.LongText
+  coverImage            String?
+  status                BlogPost_status @default(DRAFT)
+  views                 Int             @default(0)
+  publishedAt           DateTime?
+  createdBySuperAdminId String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime
+  isDeleted             Boolean         @default(false)
+  deletedAt             DateTime?
+  deletedBySuperAdminId String?
+  SuperAdmin            SuperAdmin?     @relation(fields: [createdBySuperAdminId], references: [id])
+  BlogPostImage         BlogPostImage[]
 
-  @@index([createdBy])
   @@index([isDeleted, status])
   @@index([status, publishedAt])
+  @@index([createdBySuperAdminId])
 }
 
 model BlogPostImage {
@@ -796,115 +793,115 @@ model BookingRoomAssignment {
 }
 
 model CmsPage {
-  id                                    String         @id
-  title                                 String
-  slug                                  String         @unique
-  content                               String         @db.LongText
-  status                                CmsPage_status @default(DRAFT)
-  metaTitle                             String?
-  metaDescription                       String?
-  publishedAt                           DateTime?
-  createdAt                             DateTime       @default(now())
-  updatedAt                             DateTime
-  deletedAt                             DateTime?
-  isDeleted                             Boolean        @default(false)
-  createdByAdminId                      String?
-  updatedByAdminId                      String?
-  deletedByAdminId                      String?
-  Admin_CmsPage_createdByAdminIdToAdmin Admin?         @relation("CmsPage_createdByAdminIdToAdmin", fields: [createdByAdminId], references: [id])
-  Admin_CmsPage_deletedByAdminIdToAdmin Admin?         @relation("CmsPage_deletedByAdminIdToAdmin", fields: [deletedByAdminId], references: [id])
-  Admin_CmsPage_updatedByAdminIdToAdmin Admin?         @relation("CmsPage_updatedByAdminIdToAdmin", fields: [updatedByAdminId], references: [id])
+  id                                                   String         @id
+  title                                                String
+  slug                                                 String         @unique
+  content                                              String         @db.LongText
+  status                                               CmsPage_status @default(DRAFT)
+  metaTitle                                            String?
+  metaDescription                                      String?
+  publishedAt                                          DateTime?
+  createdAt                                            DateTime       @default(now())
+  updatedAt                                            DateTime
+  deletedAt                                            DateTime?
+  isDeleted                                            Boolean        @default(false)
+  createdBySuperAdminId                                String?
+  updatedBySuperAdminId                                String?
+  deletedBySuperAdminId                                String?
+  SuperAdmin_CmsPage_createdBySuperAdminIdToSuperAdmin SuperAdmin?    @relation("CmsPage_createdBySuperAdminIdToSuperAdmin", fields: [createdBySuperAdminId], references: [id])
+  SuperAdmin_CmsPage_deletedBySuperAdminIdToSuperAdmin SuperAdmin?    @relation("CmsPage_deletedBySuperAdminIdToSuperAdmin", fields: [deletedBySuperAdminId], references: [id])
+  SuperAdmin_CmsPage_updatedBySuperAdminIdToSuperAdmin SuperAdmin?    @relation("CmsPage_updatedBySuperAdminIdToSuperAdmin", fields: [updatedBySuperAdminId], references: [id])
 
-  @@index([createdByAdminId])
   @@index([deletedAt])
-  @@index([deletedByAdminId])
   @@index([isDeleted, status])
   @@index([status])
-  @@index([updatedByAdminId])
+  @@index([createdBySuperAdminId])
+  @@index([deletedBySuperAdminId])
+  @@index([updatedBySuperAdminId])
 }
 
 model Faq {
-  id                                String       @id
-  question                          String       @db.VarChar(500)
-  answer                            String       @db.Text
-  category                          Faq_category
-  order                             Int
-  status                            Faq_status   @default(DRAFT)
-  isDeleted                         Boolean      @default(false)
-  deletedAt                         DateTime?
-  createdByAdminId                  String?
-  deletedByAdminId                  String?
-  updatedByAdminId                  String?
-  createdAt                         DateTime     @default(now())
-  updatedAt                         DateTime
-  Admin_Faq_createdByAdminIdToAdmin Admin?       @relation("Faq_createdByAdminIdToAdmin", fields: [createdByAdminId], references: [id])
-  Admin_Faq_deletedByAdminIdToAdmin Admin?       @relation("Faq_deletedByAdminIdToAdmin", fields: [deletedByAdminId], references: [id])
-  Admin_Faq_updatedByAdminIdToAdmin Admin?       @relation("Faq_updatedByAdminIdToAdmin", fields: [updatedByAdminId], references: [id])
+  id                                               String       @id
+  question                                         String       @db.VarChar(500)
+  answer                                           String       @db.Text
+  category                                         Faq_category
+  order                                            Int
+  status                                           Faq_status   @default(DRAFT)
+  isDeleted                                        Boolean      @default(false)
+  deletedAt                                        DateTime?
+  createdBySuperAdminId                            String?
+  deletedBySuperAdminId                            String?
+  updatedBySuperAdminId                            String?
+  createdAt                                        DateTime     @default(now())
+  updatedAt                                        DateTime
+  SuperAdmin_Faq_createdBySuperAdminIdToSuperAdmin SuperAdmin?  @relation("Faq_createdBySuperAdminIdToSuperAdmin", fields: [createdBySuperAdminId], references: [id])
+  SuperAdmin_Faq_deletedBySuperAdminIdToSuperAdmin SuperAdmin?  @relation("Faq_deletedBySuperAdminIdToSuperAdmin", fields: [deletedBySuperAdminId], references: [id])
+  SuperAdmin_Faq_updatedBySuperAdminIdToSuperAdmin SuperAdmin?  @relation("Faq_updatedBySuperAdminIdToSuperAdmin", fields: [updatedBySuperAdminId], references: [id])
 
   @@index([category])
-  @@index([createdByAdminId])
-  @@index([deletedByAdminId])
   @@index([isDeleted])
   @@index([order])
   @@index([status])
-  @@index([updatedByAdminId], map: "Faq_updatedByAdminId_fkey")
+  @@index([createdBySuperAdminId])
+  @@index([deletedBySuperAdminId])
+  @@index([updatedBySuperAdminId], map: "Faq_updatedBySuperAdminId_fkey")
 }
 
 model GstSlab {
-  id                                    String    @id
-  minAmount                             Decimal   @db.Decimal(10, 2)
-  maxAmount                             Decimal?  @db.Decimal(10, 2)
-  gstPercent                            Float
-  isActive                              Boolean   @default(true)
-  createdAt                             DateTime  @default(now())
-  updatedAt                             DateTime
-  createdByAdminId                      String?
-  updatedByAdminId                      String?
-  isDeleted                             Boolean   @default(false)
-  deletedAt                             DateTime?
-  deletedByAdminId                      String?
-  Admin_GstSlab_createdByAdminIdToAdmin Admin?    @relation("GstSlab_createdByAdminIdToAdmin", fields: [createdByAdminId], references: [id])
-  Admin_GstSlab_deletedByAdminIdToAdmin Admin?    @relation("GstSlab_deletedByAdminIdToAdmin", fields: [deletedByAdminId], references: [id])
-  Admin_GstSlab_updatedByAdminIdToAdmin Admin?    @relation("GstSlab_updatedByAdminIdToAdmin", fields: [updatedByAdminId], references: [id])
+  id                                                   String      @id
+  minAmount                                            Decimal     @db.Decimal(10, 2)
+  maxAmount                                            Decimal?    @db.Decimal(10, 2)
+  gstPercent                                           Float
+  isActive                                             Boolean     @default(true)
+  createdAt                                            DateTime    @default(now())
+  updatedAt                                            DateTime
+  createdBySuperAdminId                                String?
+  updatedBySuperAdminId                                String?
+  isDeleted                                            Boolean     @default(false)
+  deletedAt                                            DateTime?
+  deletedBySuperAdminId                                String?
+  SuperAdmin_GstSlab_createdBySuperAdminIdToSuperAdmin SuperAdmin? @relation("GstSlab_createdBySuperAdminIdToSuperAdmin", fields: [createdBySuperAdminId], references: [id])
+  SuperAdmin_GstSlab_deletedBySuperAdminIdToSuperAdmin SuperAdmin? @relation("GstSlab_deletedBySuperAdminIdToSuperAdmin", fields: [deletedBySuperAdminId], references: [id])
+  SuperAdmin_GstSlab_updatedBySuperAdminIdToSuperAdmin SuperAdmin? @relation("GstSlab_updatedBySuperAdminIdToSuperAdmin", fields: [updatedBySuperAdminId], references: [id])
 
-  @@index([createdByAdminId], map: "GstSlab_createdByAdminId_fkey")
-  @@index([deletedByAdminId], map: "GstSlab_deletedByAdminId_fkey")
   @@index([isActive])
-  @@index([updatedByAdminId], map: "GstSlab_updatedByAdminId_fkey")
+  @@index([createdBySuperAdminId], map: "GstSlab_createdBySuperAdminId_fkey")
+  @@index([deletedBySuperAdminId], map: "GstSlab_deletedBySuperAdminId_fkey")
+  @@index([updatedBySuperAdminId], map: "GstSlab_updatedBySuperAdminId_fkey")
 }
 
 model HomePageBanner {
-  id                                           String                @id
-  title                                        String
-  subtitle                                     String?               @db.Text
-  imageUrl                                     String
-  imageAlt                                     String?
-  mobileImageUrl                               String?
-  mobileImageAlt                               String?
-  ctaText                                      String?
-  ctaUrl                                       String?
-  openInNewTab                                 Boolean               @default(false)
-  position                                     Int                   @unique
-  status                                       HomePageBanner_status @default(INACTIVE)
-  startsAt                                     DateTime?
-  endsAt                                       DateTime?
-  createdAt                                    DateTime              @default(now())
-  updatedAt                                    DateTime
-  isDeleted                                    Boolean               @default(false)
-  deletedAt                                    DateTime?
-  createdByAdminId                             String?
-  updatedByAdminId                             String?
-  deletedByAdminId                             String?
-  Admin_HomePageBanner_createdByAdminIdToAdmin Admin?                @relation("HomePageBanner_createdByAdminIdToAdmin", fields: [createdByAdminId], references: [id])
-  Admin_HomePageBanner_deletedByAdminIdToAdmin Admin?                @relation("HomePageBanner_deletedByAdminIdToAdmin", fields: [deletedByAdminId], references: [id])
-  Admin_HomePageBanner_updatedByAdminIdToAdmin Admin?                @relation("HomePageBanner_updatedByAdminIdToAdmin", fields: [updatedByAdminId], references: [id])
+  id                                                          String                @id
+  title                                                       String
+  subtitle                                                    String?               @db.Text
+  imageUrl                                                    String
+  imageAlt                                                    String?
+  mobileImageUrl                                              String?
+  mobileImageAlt                                              String?
+  ctaText                                                     String?
+  ctaUrl                                                      String?
+  openInNewTab                                                Boolean               @default(false)
+  position                                                    Int                   @unique
+  status                                                      HomePageBanner_status @default(INACTIVE)
+  startsAt                                                    DateTime?
+  endsAt                                                      DateTime?
+  createdAt                                                   DateTime              @default(now())
+  updatedAt                                                   DateTime
+  isDeleted                                                   Boolean               @default(false)
+  deletedAt                                                   DateTime?
+  createdBySuperAdminId                                       String?
+  updatedBySuperAdminId                                       String?
+  deletedBySuperAdminId                                       String?
+  SuperAdmin_HomePageBanner_createdBySuperAdminIdToSuperAdmin SuperAdmin?           @relation("HomePageBanner_createdBySuperAdminIdToSuperAdmin", fields: [createdBySuperAdminId], references: [id])
+  SuperAdmin_HomePageBanner_deletedBySuperAdminIdToSuperAdmin SuperAdmin?           @relation("HomePageBanner_deletedBySuperAdminIdToSuperAdmin", fields: [deletedBySuperAdminId], references: [id])
+  SuperAdmin_HomePageBanner_updatedBySuperAdminIdToSuperAdmin SuperAdmin?           @relation("HomePageBanner_updatedBySuperAdminIdToSuperAdmin", fields: [updatedBySuperAdminId], references: [id])
 
-  @@index([createdByAdminId], map: "HomePageBanner_createdByAdminId_fkey")
-  @@index([deletedByAdminId], map: "HomePageBanner_deletedByAdminId_fkey")
   @@index([isDeleted, status])
   @@index([position])
   @@index([status])
-  @@index([updatedByAdminId], map: "HomePageBanner_updatedByAdminId_fkey")
+  @@index([createdBySuperAdminId], map: "HomePageBanner_createdBySuperAdminId_fkey")
+  @@index([deletedBySuperAdminId], map: "HomePageBanner_deletedBySuperAdminId_fkey")
+  @@index([updatedBySuperAdminId], map: "HomePageBanner_updatedBySuperAdminId_fkey")
 }
 
 model InventoryBlock {
@@ -1092,6 +1089,8 @@ model BookingInvoice {
   cancelledAt             DateTime?
   createdAt               DateTime              @default(now())
   updatedAt               DateTime
+  cancelledInvoiceFileUrl String?               @db.VarChar(512)
+  cancelledInvoiceS3Key   String?               @db.VarChar(512)
   BookingCreditNote       BookingCreditNote[]
   Admin                   Admin                 @relation(fields: [adminId], references: [id])
   Booking                 Booking               @relation(fields: [bookingId], references: [id])
@@ -1132,6 +1131,7 @@ model AdminBankDetail {
   updatedAt           DateTime
   deletedAt           DateTime?
   isDeleted           Boolean                             @default(false)
+  metaData            Json?
   Admin               Admin                               @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([isDeleted])
@@ -1139,9 +1139,60 @@ model AdminBankDetail {
   @@index([verificationStatus])
 }
 
-enum AdminRole {
-  SUPER_ADMIN
-  ADMIN
+model CustomerWishlist {
+  customerId String
+  propertyId String
+  createdAt  DateTime @default(now())
+  Customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  Property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@id([customerId, propertyId])
+  @@index([createdAt])
+  @@index([propertyId])
+}
+
+model SuperAdmin {
+  id                                                              String                     @id
+  userCode                                                        String
+  fullName                                                        String
+  email                                                           String                     @unique
+  passwordHash                                                    String
+  permissions                                                     Json?
+  isActive                                                        Boolean                    @default(false)
+  isProfileComplete                                               Boolean                    @default(false)
+  createdAt                                                       DateTime                   @default(now())
+  updatedAt                                                       DateTime
+  resetPasswordVersion                                            Int                        @default(0)
+  emailVerifyVersion                                              Int                        @default(0)
+  BlogPost                                                        BlogPost[]
+  CmsPage_CmsPage_createdBySuperAdminIdToSuperAdmin               CmsPage[]                  @relation("CmsPage_createdBySuperAdminIdToSuperAdmin")
+  CmsPage_CmsPage_deletedBySuperAdminIdToSuperAdmin               CmsPage[]                  @relation("CmsPage_deletedBySuperAdminIdToSuperAdmin")
+  CmsPage_CmsPage_updatedBySuperAdminIdToSuperAdmin               CmsPage[]                  @relation("CmsPage_updatedBySuperAdminIdToSuperAdmin")
+  Coupon                                                          Coupon[]
+  Faq_Faq_createdBySuperAdminIdToSuperAdmin                       Faq[]                      @relation("Faq_createdBySuperAdminIdToSuperAdmin")
+  Faq_Faq_deletedBySuperAdminIdToSuperAdmin                       Faq[]                      @relation("Faq_deletedBySuperAdminIdToSuperAdmin")
+  Faq_Faq_updatedBySuperAdminIdToSuperAdmin                       Faq[]                      @relation("Faq_updatedBySuperAdminIdToSuperAdmin")
+  GstSlab_GstSlab_createdBySuperAdminIdToSuperAdmin               GstSlab[]                  @relation("GstSlab_createdBySuperAdminIdToSuperAdmin")
+  GstSlab_GstSlab_deletedBySuperAdminIdToSuperAdmin               GstSlab[]                  @relation("GstSlab_deletedBySuperAdminIdToSuperAdmin")
+  GstSlab_GstSlab_updatedBySuperAdminIdToSuperAdmin               GstSlab[]                  @relation("GstSlab_updatedBySuperAdminIdToSuperAdmin")
+  HomePageBanner_HomePageBanner_createdBySuperAdminIdToSuperAdmin HomePageBanner[]           @relation("HomePageBanner_createdBySuperAdminIdToSuperAdmin")
+  HomePageBanner_HomePageBanner_deletedBySuperAdminIdToSuperAdmin HomePageBanner[]           @relation("HomePageBanner_deletedBySuperAdminIdToSuperAdmin")
+  HomePageBanner_HomePageBanner_updatedBySuperAdminIdToSuperAdmin HomePageBanner[]           @relation("HomePageBanner_updatedBySuperAdminIdToSuperAdmin")
+  PlatformCommissionConfig                                        PlatformCommissionConfig[]
+  SuperAdminProfile                                               SuperAdminProfile?
+}
+
+model SuperAdminProfile {
+  id                String                              @id
+  superAdminId      String                              @unique
+  photoUrl          String
+  phone             String                              @unique
+  countryCode       String                              @default("+91")
+  preferredLanguage SuperAdminProfile_preferredLanguage @default(EN)
+  shortBio          String?                             @db.Text
+  createdAt         DateTime                            @default(now())
+  updatedAt         DateTime
+  SuperAdmin        SuperAdmin                          @relation(fields: [superAdminId], references: [id])
 }
 
 enum PreferredLanguage {
@@ -1457,4 +1508,10 @@ enum AdminBankDetail_provider {
   RAZORPAY
   MANUAL
   OTHER
+}
+
+enum SuperAdminProfile_preferredLanguage {
+  EN
+  HI
+  TE
 }
