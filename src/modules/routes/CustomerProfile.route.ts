@@ -23,24 +23,21 @@ const customerProfileRoute: FastifyPluginAsync = async (fastify) => {
         "### Authorization\n" +
         "- Requires a valid access token.\n" +
         "- Pass JWT as `Authorization: Bearer <token>`.\n\n" +
-        "### Phone Verification\n" +
-        "- `verificationToken` is a **separate JWT** issued after successful phone OTP verification.\n" +
-        "- The token encodes `isVerified` and the normalized phone number (with country code, e.g. `919876543210`).\n" +
-        "- If this token is missing, invalid, or expired, the request will be rejected.\n\n" +
+        "### Email Verification\n" +
+        "- `email` is required.\n" +
+        "- A verification link is generated for the provided email address.\n\n" +
         "### Behaviour\n" +
         "- Uses `req.user.id` from the access token as the customer id.\n" +
         "- Client must **not** send `customerId` in the request body.\n" +
-        "- Uses the phone number from `verificationToken`; client must **not** send phone directly.\n" +
-        "- Optional profile fields may include `address`, `city`, `state`, and `countryCode`.\n" +
+        "- Optional profile fields may include `address`, `city`, and `state`.\n" +
         "- Fails if:\n" +
         "  - Customer does not exist (`404`).\n" +
         "  - Customer already has a profile (`409`).\n" +
-        "  - Phone number is already linked to another profile (`409`).\n" +
-        "  - Token is invalid/expired (`400`).\n" +
+        "  - Email is already linked to another profile (`409`).\n" +
         "- On success:\n" +
         "  - Creates a `CustomerProfile` row.\n" +
         "  - Sets `Customer.isProfileComplete = true`.\n" +
-        "  - Sets `Customer.isActive = true`.",
+        "  - Generates an email verification link.",
 
       security: [{ bearerAuth: [] }],
 
@@ -81,22 +78,20 @@ const customerProfileRoute: FastifyPluginAsync = async (fastify) => {
           "  - Customer must be **active** to change email.\n" +
           "  - A verification link is generated (`emailChangeLink`) and must be used to confirm the change.\n" +
           "- Phone:\n" +
-          "  - Provide a `verificationToken` (JWT) that was issued after successful phone OTP verification.\n" +
-          "  - The token must contain `{ isVerified: true, phone: <normalizedPhone> }`.\n" +
-          "  - Phone is updated immediately if unique.\n\n" +
+          "  - Provide `verificationToken` from the phone OTP verification flow.\n" +
+          "  - The phone number is read from the verified token; clients must not send phone directly.\n" +
           "### Important rules\n" +
-          "- `customerId` is required in the request body.\n" +
-          "- You may update **either** email **or** phone in a single request, **not both**.\n" +
-          "- If neither email nor phone is changing, you can still update `fullName`, `photoUrl`, `address`, `city`, `state`, and `countryCode`.\n\n" +
+          "- Uses `req.user.id` from the access token as the customer id.\n" +
+          "- Client must **not** send `customerId` in the request body.\n" +
+          "- If email is not changing, you can still update `fullName`, `photoUrl`, `address`, `city`, `state`, `countryCode`, and phone.\n\n" +
           "### Responses\n" +
           "- **200 OK**:\n" +
           "  - Returns the updated `customer` with nested `CustomerProfile`.\n" +
           "  - `emailChangeLink` is non-null when an email change flow was triggered.\n" +
-          "  - `phoneChanged` is `true` when phone was updated using a valid `verificationToken`.\n" +
+          "  - `phoneChanged` is true when phone was updated from `verificationToken`.\n" +
           "- **400 Bad Request**:\n" +
           "  - No changes provided.\n" +
           "  - Invalid or expired `verificationToken`.\n" +
-          "  - Attempt to change both email and phone in the same request.\n" +
           "- **403 Forbidden**:\n" +
           "  - Trying to change email while the account is not active.\n" +
           "- **404 Not Found**:\n" +
@@ -125,12 +120,18 @@ const customerProfileRoute: FastifyPluginAsync = async (fastify) => {
         tags: ["Profile Customer"],
         summary: "Verify email change",
         description:
-          "Verify customer email change using the token sent to the new email address",
+          "Verify customer email change using the JWT token from the `emailChangeLink` sent to the new email address.",
         querystring: {
           type: "object",
           required: ["token"],
           properties: {
-            token: { type: "string" },
+            token: {
+              type: "string",
+              description:
+                "Email change JWT token. Pass only the token value, not the whole update curl command.",
+              example:
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdXN0b21lcklkIjoiY3VzdG9tZXItdXVpZCIsIm5ld0VtYWlsIjoibmV3ZW1haWxAZXhhbXBsZS5jb20ifQ.signature",
+            },
           },
         },
         response: {
@@ -145,13 +146,68 @@ const customerProfileRoute: FastifyPluginAsync = async (fastify) => {
               },
               customer: {
                 type: "object",
+                additionalProperties: false,
+                required: [
+                  "id",
+                  "fullName",
+                  "phone",
+                  "countryCode",
+                  "isActive",
+                  "isProfileComplete",
+                  "CustomerProfile",
+                ],
                 properties: {
                   id: { type: "string" },
                   fullName: { type: "string" },
-                  email: { type: "string" },
+                  phone: {
+                    type: "string",
+                    example: "919876543210",
+                    description: "Normalized phone number with digits only.",
+                  },
+                  countryCode: {
+                    type: "string",
+                    example: "+91",
+                    description: "Customer country calling code.",
+                  },
                   isActive: { type: "boolean" },
                   isProfileComplete: { type: "boolean" },
-                  profile: { type: ["object", "null"] },
+                  CustomerProfile: {
+                    type: ["object", "null"],
+                    additionalProperties: false,
+                    properties: {
+                      id: { type: "string", example: "profile-uuid" },
+                      customerId: { type: "string", example: "customer-uuid" },
+                      email: {
+                        type: "string",
+                        format: "email",
+                        example: "newemail@example.com",
+                      },
+                      photoUrl: {
+                        type: ["string", "null"],
+                        example: "https://cdn.example.com/profile.jpg",
+                      },
+                      address: {
+                        type: ["string", "null"],
+                        example: "123 Main Street, Hyderabad, Telangana, 500001",
+                      },
+                      city: {
+                        type: ["string", "null"],
+                        example: "Hyderabad",
+                      },
+                      state: {
+                        type: ["string", "null"],
+                        example: "Telangana",
+                      },
+                      createdAt: {
+                        type: "string",
+                        format: "date-time",
+                      },
+                      updatedAt: {
+                        type: "string",
+                        format: "date-time",
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -215,7 +271,14 @@ const customerProfileRoute: FastifyPluginAsync = async (fastify) => {
       schema: {
         tags: ["Profile Customer"],
         summary: "Get Customer Details",
-        description: "🔐 Authorization required. Pass JWT as: Bearer <token>",
+        description:
+          "Get details for the authenticated customer.\n\n" +
+          "### Authorization\n" +
+          "- Requires a valid access token.\n" +
+          "- Pass JWT as `Authorization: Bearer <token>`.\n\n" +
+          "### Important rules\n" +
+          "- Uses `req.user.id` from the access token as the customer id.\n" +
+          "- Client must **not** send `customerId` as a query parameter.",
         querystring: CustomerProfileGetQuerySchema,
         security: [{ bearerAuth: [] }],
         response: GetResponseSchema.CustomerProfileGetResponseSchema,

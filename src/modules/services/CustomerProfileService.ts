@@ -1,66 +1,10 @@
-import jwt from "jsonwebtoken";
 import { AppError } from "../../utils/appError.js";
 import { prisma } from "../../utils/prisma.js";
-import { env } from "../../config/env.js";
 import { Prisma } from "../../generated/prisma/client.js";
-
-type PhoneVerificationTokenPayload = {
-  isVerified: boolean;
-  phone: string; // normalized phone with country code, e.g. "919876543210"
-};
-
-const PHONE_VERIFICATION_TOKEN_SECRET = env.JWT_SECRET;
-
-/**
- * Decode and validate the phone verification token.
- * Throws AppError with proper status codes on any problem.
- */
-function decodePhoneVerificationToken(
-  token: string
-): PhoneVerificationTokenPayload {
-  if (!PHONE_VERIFICATION_TOKEN_SECRET) {
-    throw new AppError(
-      500,
-      "Phone verification is temporarily unavailable. Please try again later."
-    );
-  }
-
-  try {
-    const decoded = jwt.verify(
-      token,
-      PHONE_VERIFICATION_TOKEN_SECRET
-    ) as jwt.JwtPayload | string;
-
-    if (!decoded || typeof decoded === "string") {
-      throw new AppError(400, "Invalid phone verification token.");
-    }
-
-    const { isVerified, phone } =
-      decoded as Partial<PhoneVerificationTokenPayload>;
-
-    if (typeof isVerified !== "boolean" || typeof phone !== "string") {
-      throw new AppError(400, "Invalid phone verification token payload.");
-    }
-
-    return {
-      isVerified,
-      phone: phone.trim(),
-    };
-  } catch (err: any) {
-    if (err?.name === "TokenExpiredError") {
-      throw new AppError(
-        400,
-        "Phone verification token has expired. Please verify your phone number again."
-      );
-    }
-
-    if (err instanceof AppError) {
-      throw err;
-    }
-
-    throw new AppError(400, "Invalid phone verification token.");
-  }
-}
+import {
+  buildEmailChangeLink,
+  emailChangeToken,
+} from "../../utils/generateEmailVerificationToken.js";
 
 function normalizeNullableText(value: string | null | undefined) {
   if (value === undefined) {
@@ -75,23 +19,15 @@ function normalizeNullableText(value: string | null | undefined) {
   return trimmed || null;
 }
 
-function normalizeCountryCode(value: string | null | undefined) {
-  if (value === undefined || value === null) {
-    return undefined;
+function normalizeEmail(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase();
+
+  if (!normalized) {
+    throw new AppError(400, "Email is required.");
   }
 
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return undefined;
-  }
-
-  const normalized = trimmed.startsWith("+")
-    ? `+${trimmed.slice(1).replace(/\D/g, "")}`
-    : `+${trimmed.replace(/\D/g, "")}`;
-
-  if (!/^\+\d{1,4}$/.test(normalized)) {
-    throw new AppError(400, "Invalid country code. It must be like +91, +1, etc.");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)) {
+    throw new AppError(400, "Invalid email format.");
   }
 
   return normalized;
@@ -100,25 +36,16 @@ function normalizeCountryCode(value: string | null | undefined) {
 export type CreateCustomerProfileInput = {
   customerId: string;
   photoUrl: string;
+  email: string;
   address?: string | null;
   city?: string | null;
   state?: string | null;
-  countryCode?: string | null;
-  verificationToken?: string;
 };
 
 export const CustomerProfileService = async (
   data: CreateCustomerProfileInput
 ) => {
-  const {
-    customerId,
-    photoUrl,
-    address,
-    city,
-    state,
-    countryCode,
-    verificationToken,
-  } = data;
+  const { customerId, photoUrl, email, address, city, state } = data;
 
   try {
     if (!customerId || typeof customerId !== "string") {
@@ -135,38 +62,12 @@ export const CustomerProfileService = async (
       throw new AppError(400, "Valid photoUrl is required.");
     }
 
-    if (!verificationToken || typeof verificationToken !== "string") {
-      throw new AppError(
-        400,
-        "Phone number not verified. verificationToken missing or invalid."
-      );
-    }
-
-    const { isVerified, phone } = decodePhoneVerificationToken(
-      verificationToken
-    );
-
-    if (!isVerified) {
-      throw new AppError(
-        400,
-        "Phone number not verified. Verification required."
-      );
-    }
-
-    if (!phone || typeof phone !== "string") {
-      throw new AppError(
-        400,
-        "Phone number not verified. Invalid phone in token."
-      );
-    }
-
-    const normalizedPhone = phone.trim();
+    const normalizedEmail = normalizeEmail(email);
     const normalizedAddress = normalizeNullableText(address);
     const normalizedCity = normalizeNullableText(city);
     const normalizedState = normalizeNullableText(state);
-    const normalizedCountryCode = normalizeCountryCode(countryCode);
 
-    const profile = await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx) => {
       const existingCustomer = await tx.customer.findUnique({
         where: { id: customerId },
         select: {
@@ -182,23 +83,20 @@ export const CustomerProfileService = async (
         throw new AppError(409, "Profile already completed.");
       }
 
-      const phoneExists = await tx.customerProfile.findUnique({
-        where: { phone: normalizedPhone },
+      const emailExistsInProfile = await tx.customerProfile.findUnique({
+        where: { email: normalizedEmail },
         select: { id: true },
       });
 
-      if (phoneExists) {
-        throw new AppError(409, "Phone number already in use.");
+      if (emailExistsInProfile) {
+        throw new AppError(409, "Email already in use.");
       }
 
-      const createdProfile = await tx.customerProfile.create({
+      const profile = await tx.customerProfile.create({
         data: {
           customerId,
           photoUrl: normalizedPhotoUrl,
-          phone: normalizedPhone,
-          ...(normalizedCountryCode !== undefined
-            ? { countryCode: normalizedCountryCode }
-            : {}),
+          email: normalizedEmail,
           address: normalizedAddress ?? null,
           city: normalizedCity ?? null,
           state: normalizedState ?? null,
@@ -207,7 +105,7 @@ export const CustomerProfileService = async (
           Customer: {
             select: {
               fullName: true,
-              email: true,
+              isActive: true,
             },
           },
         },
@@ -217,14 +115,33 @@ export const CustomerProfileService = async (
         where: { id: customerId },
         data: {
           isProfileComplete: true,
-          isActive: true,
         },
       });
 
-      return createdProfile;
-    });
+      const updatedForVersion = await tx.customerProfile.update({
+        where: { customerId },
+        data: {
+          emailVerifyVersion: {
+            increment: 1,
+          },
+        },
+        select: {
+          emailVerifyVersion: true,
+        },
+      });
 
-    return profile;
+      const token = emailChangeToken({
+        customerId,
+        newEmail: normalizedEmail,
+        oldEmail: normalizedEmail,
+        version: updatedForVersion.emailVerifyVersion,
+      });
+
+      return {
+        profile,
+        emailChangeLink: buildEmailChangeLink(token),
+      };
+    });
   } catch (err: any) {
     if (err instanceof AppError) {
       throw err;
@@ -235,8 +152,8 @@ export const CustomerProfileService = async (
         const target = (err.meta?.target ?? "") as string | string[];
         const targets = Array.isArray(target) ? target : [target];
 
-        if (targets.some((t) => t.includes("phone"))) {
-          throw new AppError(409, "Phone number already in use.");
+        if (targets.some((t) => t.toLowerCase().includes("email"))) {
+          throw new AppError(409, "Email already in use.");
         }
 
         if (targets.some((t) => t.includes("customerId"))) {

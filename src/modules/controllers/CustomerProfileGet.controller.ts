@@ -1,14 +1,18 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { CustomerProfileGetRequest } from "../../types.js";
 import { CustomerProfileGetService } from "../services/CustomerProfileGetService.js";
+import { AppError } from "../../utils/appError.js";
 
 export const CustomerProfileGetController = async (
   req: FastifyRequest,
   reply: FastifyReply
 ) => {
-  const { customerId } = req.query as CustomerProfileGetRequest["query"];
-
   try {
+    const customerId = req.user?.id;
+
+    if (!customerId) {
+      throw new AppError(401, "Unauthorized");
+    }
+
     const customer = await CustomerProfileGetService(customerId);
 
     return reply.code(200).send({

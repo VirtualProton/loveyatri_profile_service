@@ -50,32 +50,29 @@ export type OwnerProfileUpdateRequest = FastifyRequest<{
 export type CustomerProfileRequest = FastifyRequest<{
     Body: {
         photoUrl: string;
+        email: string;
         address?: string | null;
         city?: string | null;
         state?: string | null;
-        countryCode?: string | null;
-        verificationToken: string; // required
     };
 }>;
 
 export type CustomerProfileUpdateRequest = FastifyRequest<{
     Body: {
-        customerId: string;
-        fullName?: string;
-        photoUrl?: string;
+        fullName?: string | null;
+        photoUrl?: string | null;
         address?: string | null;
         city?: string | null;
         state?: string | null;
+        email?: string | null;
         countryCode?: string | null;
-        email?: string;
-        verificationToken?: string; // used when changing phone
+        verificationToken?: string | null;
+        phoneVerificationToken?: string | null;
     };
 }>;
 
 export type CustomerProfileGetRequest = FastifyRequest<{
-    Querystring: {
-        customerId: string;
-    };
+    Querystring: Record<string, never>;
 }>;
 
 export type CreatePlatformReviewRequest = FastifyRequest<{

@@ -8,7 +8,8 @@ export const CustomerProfileGetService = async (customerId: string) => {
       select: {
         id: true,
         fullName: true,
-        email: true,
+        phone: true,
+        countryCode: true,
         isActive: true,
         isProfileComplete: true,
         createdAt: true,
@@ -18,8 +19,7 @@ export const CustomerProfileGetService = async (customerId: string) => {
             id: true,
             customerId: true,
             photoUrl: true,
-            phone: true,
-            countryCode: true,
+            email: true,
             address: true,
             city: true,
             state: true,
@@ -37,12 +37,13 @@ export const CustomerProfileGetService = async (customerId: string) => {
     return {
       id: customer.id,
       fullName: customer.fullName,
-      email: customer.email,
+      phone: customer.phone,
+      countryCode: customer.countryCode,
       isActive: customer.isActive,
       isProfileComplete: customer.isProfileComplete,
       createdAt: customer.createdAt,
       updatedAt: customer.updatedAt,
-      profile: customer.CustomerProfile,
+      CustomerProfile: customer.CustomerProfile,
     };
   } catch (err: any) {
     if (err instanceof AppError) throw err;

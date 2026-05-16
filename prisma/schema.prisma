@@ -38,6 +38,7 @@ model Admin {
   BookingCreditNote                       BookingCreditNote[]
   BookingInvoice                          BookingInvoice[]
   BookingPayment                          BookingPayment[]
+  CommissionInvoice                       CommissionInvoice[]
   Coupon_Coupon_adminIdToAdmin            Coupon[]                  @relation("Coupon_adminIdToAdmin")
   Coupon_Coupon_createdByAdminIdToAdmin   Coupon[]                  @relation("Coupon_createdByAdminIdToAdmin")
   InventoryBlock                          InventoryBlock[]
@@ -131,6 +132,7 @@ model Property {
   BookingInvoice            BookingInvoice[]
   BookingPayment            BookingPayment[]
   BookingRoomAssignment     BookingRoomAssignment[]
+  CommissionInvoice         CommissionInvoice[]
   Coupon                    Coupon[]
   customAmenities           CustomAmenity[]
   CustomerWishlist          CustomerWishlist[]
@@ -174,6 +176,7 @@ model Unit {
   maxGuestsAtBasePrice    Int?
   BookingRoomAssignment   BookingRoomAssignment[]
   bookingUnits            BookingUnit[]
+  BookingUnitNightPrice   BookingUnitNightPrice[]
   InventoryBlock          InventoryBlock[]
   property                Property                @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   images                  UnitImage[]
@@ -318,27 +321,32 @@ model UnitPriceRule {
   amount         Float
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
+  deletedAt      DateTime?
+  isDeleted      Boolean             @default(false)
+  version        Int                 @default(1)
+  parentId       String?
   unit           Unit                @relation(fields: [unitId], references: [id], onDelete: Cascade)
 
   @@index([unitId])
   @@index([ruleType])
   @@index([startDate, endDate])
+  @@index([unitId, isDeleted])
 }
 
 model Customer {
   id                        String                      @id @default(uuid())
   fullName                  String
-  email                     String                      @unique
   passwordHash              String?
   googleId                  String?                     @unique
   isActive                  Boolean                     @default(false)
   createdAt                 DateTime                    @default(now())
   updatedAt                 DateTime                    @updatedAt
   isProfileComplete         Boolean                     @default(false)
-  pendingEmail              String?                     @unique
   resetPasswordVersion      Int                         @default(0)
   role                      String                      @default("CUSTOMER")
-  emailVerifyVersion        Int                         @default(0)
+  customerCode              String?                     @unique
+  phone                     String                      @unique
+  countryCode               String                      @default("+91")
   Booking                   Booking[]
   BookingCreditNote         BookingCreditNote[]
   BookingInvoice            BookingInvoice[]
@@ -351,17 +359,17 @@ model Customer {
 }
 
 model CustomerProfile {
-  id          String   @id @default(uuid())
-  customerId  String   @unique
-  photoUrl    String
-  phone       String   @unique
-  countryCode String?  @default("+91")
-  address     String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  city        String?
-  state       String?
-  Customer    Customer @relation(fields: [customerId], references: [id])
+  id         String   @id @default(uuid())
+  customerId String   @unique
+  photoUrl   String
+  address    String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  city       String?
+  state      String?
+  email      String   @unique
+  emailVerifyVersion        Int                         @default(0)
+  Customer   Customer @relation(fields: [customerId], references: [id])
 }
 
 model Coupon {
@@ -483,9 +491,9 @@ model Booking {
   advancePaymentType                    Booking_advancePaymentType?
   advancePaymentValue                   Float?
   advanceAmount                         Decimal?                    @db.Decimal(10, 2)
-  commissionPercent                     Float
-  commissionAmount                      Decimal                     @db.Decimal(10, 2)
-  netAmountToAdmin                      Decimal                     @db.Decimal(10, 2)
+  commissionPercent                     Float                       @default(0)
+  commissionAmount                      Decimal                     @default(0.00) @db.Decimal(10, 2)
+  netAmountToAdmin                      Decimal                     @default(0.00) @db.Decimal(10, 2)
   couponId                              String?
   couponCode                            String?
   couponDiscountAmount                  Decimal                     @default(0.00) @db.Decimal(10, 2)
@@ -511,6 +519,7 @@ model Booking {
   cancelVoucharS3Key                    String?
   confirmVoucharPdfUrl                  String?
   confirmVoucharS3Key                   String?
+  taxableAmount                         Decimal                     @default(0.00) @db.Decimal(10, 2)
   AdminSettlementLedger                 AdminSettlementLedger?
   Admin                                 Admin                       @relation(fields: [adminId], references: [id])
   Coupon                                Coupon?                     @relation(fields: [couponId], references: [id])
@@ -522,6 +531,8 @@ model Booking {
   BookingPayment                        BookingPayment[]
   BookingRoomAssignment                 BookingRoomAssignment[]
   BookingUnit                           BookingUnit[]
+  BookingUnitNightPrice                 BookingUnitNightPrice[]
+  CommissionInvoice                     CommissionInvoice[]
   RefundSettlement                      RefundSettlement[]
 
   @@index([adminId])
@@ -557,31 +568,36 @@ model BookingPayment {
   updatedAt        DateTime
   receiptFileUrl   String?                 @db.VarChar(512)
   receiptS3Key     String?                 @db.VarChar(512)
+  expiresAt        DateTime?
+  idempotencyKey   String?
   Admin            Admin                   @relation(fields: [adminId], references: [id])
   Booking          Booking                 @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   Customer         Customer?               @relation(fields: [customerId], references: [id])
   Property         Property                @relation(fields: [propertyId], references: [id])
   RefundSettlement RefundSettlement[]
 
+  @@unique([bookingId, idempotencyKey])
   @@index([adminId])
   @@index([bookingId])
   @@index([customerId])
   @@index([propertyId])
   @@index([status])
+  @@index([expiresAt])
 }
 
 model BookingUnit {
-  id               String                       @id
-  bookingId        String
-  unitId           String
-  unitNameSnapshot String?
-  unitTypeSnapshot BookingUnit_unitTypeSnapshot
-  pricePerNight    Decimal                      @db.Decimal(10, 2)
-  nights           Int
-  quantity         Int                          @default(1)
-  lineAmount       Decimal                      @db.Decimal(10, 2)
-  Booking          Booking                      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  Unit             Unit                         @relation(fields: [unitId], references: [id])
+  id                    String                       @id
+  bookingId             String
+  unitId                String
+  unitNameSnapshot      String?
+  unitTypeSnapshot      BookingUnit_unitTypeSnapshot
+  pricePerNight         Decimal                      @db.Decimal(10, 2)
+  nights                Int
+  quantity              Int                          @default(1)
+  lineAmount            Decimal                      @db.Decimal(10, 2)
+  Booking               Booking                      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  Unit                  Unit                         @relation(fields: [unitId], references: [id])
+  BookingUnitNightPrice BookingUnitNightPrice[]
 
   @@index([bookingId])
   @@index([unitId])
@@ -635,6 +651,7 @@ model UnitRoom {
   deletedAt             DateTime?
   isDeleted             Boolean                 @default(false)
   BookingRoomAssignment BookingRoomAssignment[]
+  BookingUnitNightPrice BookingUnitNightPrice[]
   InventoryBlock        InventoryBlock[]
   Property              Property                @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   Unit                  Unit                    @relation(fields: [unitId], references: [id], onDelete: Cascade)
@@ -683,6 +700,7 @@ model AdminSettlementLedger {
   Booking                       Booking                                @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   Property                      Property                               @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   AdminSuperAdminTransferLedger AdminSuperAdminTransferLedger[]
+  CommissionInvoice             CommissionInvoice?
   RefundSettlement              RefundSettlement[]
 
   @@index([adminId, settlementStatus, eligibleAt])
@@ -706,6 +724,7 @@ model AdminSuperAdminTransfer {
   Admin                          Admin                                @relation(fields: [adminId], references: [id])
   AdminSuperAdminTransferLedger  AdminSuperAdminTransferLedger[]
   AdminSuperAdminTransferPayment AdminSuperAdminTransferPayment[]
+  CommissionInvoice              CommissionInvoice[]
 
   @@index([adminId, status])
 }
@@ -737,6 +756,7 @@ model AdminSuperAdminTransferPayment {
   rawRequestJson          String?                                 @db.LongText
   rawResponseJson         String?                                 @db.LongText
   AdminSuperAdminTransfer AdminSuperAdminTransfer                 @relation(fields: [transferId], references: [id])
+  CommissionInvoice       CommissionInvoice[]
 
   @@index([provider])
   @@index([status])
@@ -971,33 +991,38 @@ model RefundSettlement {
 }
 
 model RefundSettlementPayment {
-  id                 String                           @id
-  refundCode         String                           @unique
-  refundSettlementId String
-  amount             Decimal                          @db.Decimal(10, 2)
-  currency           String                           @default("INR")
-  provider           RefundSettlementPayment_provider @default(MANUAL)
-  status             RefundSettlementPayment_status   @default(PENDING)
-  attempt            Int                              @default(1)
-  initiatedAt        DateTime                         @default(now())
-  completedAt        DateTime?
-  refundReferenceId  String?
-  proofScreenshotUrl String?
-  rawRequestJson     String?                          @db.LongText
-  rawResponseJson    String?                          @db.LongText
-  isDeleted          Boolean                          @default(false)
-  deletedAt          DateTime?
-  createdByAdminId   String?
-  createdAt          DateTime                         @default(now())
-  updatedAt          DateTime
-  updatedByAdminId   String?
-  Admin              Admin?                           @relation(fields: [createdByAdminId], references: [id])
-  RefundSettlement   RefundSettlement                 @relation(fields: [refundSettlementId], references: [id])
+  id                    String                           @id
+  refundCode            String                           @unique
+  refundSettlementId    String
+  amount                Decimal                          @db.Decimal(10, 2)
+  currency              String                           @default("INR")
+  provider              RefundSettlementPayment_provider @default(MANUAL)
+  status                RefundSettlementPayment_status   @default(PENDING)
+  attempt               Int                              @default(1)
+  initiatedAt           DateTime                         @default(now())
+  completedAt           DateTime?
+  refundReferenceId     String?
+  proofScreenshotUrl    String?
+  rawRequestJson        String?                          @db.LongText
+  rawResponseJson       String?                          @db.LongText
+  isDeleted             Boolean                          @default(false)
+  deletedAt             DateTime?
+  createdByAdminId      String?
+  createdAt             DateTime                         @default(now())
+  updatedAt             DateTime
+  updatedByAdminId      String?
+  createdBySuperAdminId String?
+  idempotencyKey        String?
+  Admin                 Admin?                           @relation(fields: [createdByAdminId], references: [id])
+  SuperAdmin            SuperAdmin?                      @relation(fields: [createdBySuperAdminId], references: [id])
+  RefundSettlement      RefundSettlement                 @relation(fields: [refundSettlementId], references: [id])
 
+  @@unique([refundSettlementId, idempotencyKey])
   @@index([createdByAdminId], map: "RefundSettlementPayment_createdByAdminId_fkey")
   @@index([provider])
   @@index([refundSettlementId])
   @@index([status])
+  @@index([createdBySuperAdminId], map: "RefundSettlementPayment_createdBySuperAdminId_fkey")
 }
 
 model BookingCreditNote {
@@ -1115,36 +1140,37 @@ model BookingInvoice {
 }
 
 model AdminBankDetail {
-  id                  String                              @id
-  adminId             String
-  accountHolderName   String
-  accountNumberMasked String
-  accountNumberLast4  String                              @db.Char(4)
-  ifscCode            String                              @db.Char(11)
-  bankName            String?
-  verificationStatus  AdminBankDetail_verificationStatus  @default(PENDING)
-  verificationMethod  AdminBankDetail_verificationMethod?
-  provider            AdminBankDetail_provider?
-  providerStatus      String?
-  validationId        String?                             @unique
-  fundAccountId       String?                             @unique
-  contactId           String?
-  referenceId         String?
-  utr                 String?
-  registeredName      String?
-  nameMatchScore      Float?
-  isNameMatch         Boolean?
-  accountStatus       String?
-  verifiedAt          DateTime?
-  lastVerificationAt  DateTime?
-  rawVerificationJson String?                             @db.LongText
-  createdAt           DateTime                            @default(now())
-  updatedAt           DateTime
-  deletedAt           DateTime?
-  isDeleted           Boolean                             @default(false)
-  metaData            Json?
-  isActive            Boolean                             @default(false)
-  Admin               Admin                               @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  id                     String                              @id
+  adminId                String
+  accountHolderName      String
+  accountNumberMasked    String
+  accountNumberLast4     String                              @db.Char(4)
+  accountNumberEncrypted String?                             @db.Text
+  ifscCode               String                              @db.Char(11)
+  bankName               String?
+  verificationStatus     AdminBankDetail_verificationStatus  @default(PENDING)
+  verificationMethod     AdminBankDetail_verificationMethod?
+  provider               AdminBankDetail_provider?
+  providerStatus         String?
+  validationId           String?                             @unique
+  fundAccountId          String?                             @unique
+  contactId              String?
+  referenceId            String?
+  utr                    String?
+  registeredName         String?
+  nameMatchScore         Float?
+  isNameMatch            Boolean?
+  accountStatus          String?
+  verifiedAt             DateTime?
+  lastVerificationAt     DateTime?
+  rawVerificationJson    String?                             @db.LongText
+  createdAt              DateTime                            @default(now())
+  updatedAt              DateTime
+  deletedAt              DateTime?
+  isDeleted              Boolean                             @default(false)
+  metaData               Json?
+  isActive               Boolean                             @default(false)
+  Admin                  Admin                               @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([isDeleted])
   @@index([provider, verificationStatus])
@@ -1166,48 +1192,49 @@ model CustomerWishlist {
 }
 
 model SuperAdmin {
-  id                                                              String                     @id
-  userCode                                                        String
+  id                                                              String                       @id
+  userCode                                                        String                       @unique
   fullName                                                        String
-  email                                                           String                     @unique
-  passwordHash                                                    String
+  email                                                           String                       @unique
+  passwordHash                                                    String?
   permissions                                                     Json?
-  isActive                                                        Boolean                    @default(false)
-  isProfileComplete                                               Boolean                    @default(false)
-  createdAt                                                       DateTime                   @default(now())
+  isActive                                                        Boolean                      @default(false)
+  isProfileComplete                                               Boolean                      @default(false)
+  createdAt                                                       DateTime                     @default(now())
   updatedAt                                                       DateTime
-  resetPasswordVersion                                            Int                        @default(0)
-  emailVerifyVersion                                              Int                        @default(0)
+  resetPasswordVersion                                            Int                          @default(0)
+  emailVerifyVersion                                              Int                          @default(0)
+  isPlatformOwner                                                 Boolean                      @default(false)
+  countryCode                                                     String?                      @default("+91")
+  phone                                                           String?                      @unique
+  photoUrl                                                        String?
+  deletedAt                                                       DateTime?
+  deletedBySuperAdminId                                           String?
+  isDeleted                                                       Boolean                      @default(false)
   BlogPost                                                        BlogPost[]
-  CmsPage_CmsPage_createdBySuperAdminIdToSuperAdmin               CmsPage[]                  @relation("CmsPage_createdBySuperAdminIdToSuperAdmin")
-  CmsPage_CmsPage_deletedBySuperAdminIdToSuperAdmin               CmsPage[]                  @relation("CmsPage_deletedBySuperAdminIdToSuperAdmin")
-  CmsPage_CmsPage_updatedBySuperAdminIdToSuperAdmin               CmsPage[]                  @relation("CmsPage_updatedBySuperAdminIdToSuperAdmin")
+  CmsPage_CmsPage_createdBySuperAdminIdToSuperAdmin               CmsPage[]                    @relation("CmsPage_createdBySuperAdminIdToSuperAdmin")
+  CmsPage_CmsPage_deletedBySuperAdminIdToSuperAdmin               CmsPage[]                    @relation("CmsPage_deletedBySuperAdminIdToSuperAdmin")
+  CmsPage_CmsPage_updatedBySuperAdminIdToSuperAdmin               CmsPage[]                    @relation("CmsPage_updatedBySuperAdminIdToSuperAdmin")
+  CommissionInvoice                                               CommissionInvoice[]
   Coupon                                                          Coupon[]
-  Faq_Faq_createdBySuperAdminIdToSuperAdmin                       Faq[]                      @relation("Faq_createdBySuperAdminIdToSuperAdmin")
-  Faq_Faq_deletedBySuperAdminIdToSuperAdmin                       Faq[]                      @relation("Faq_deletedBySuperAdminIdToSuperAdmin")
-  Faq_Faq_updatedBySuperAdminIdToSuperAdmin                       Faq[]                      @relation("Faq_updatedBySuperAdminIdToSuperAdmin")
-  GstSlab_GstSlab_createdBySuperAdminIdToSuperAdmin               GstSlab[]                  @relation("GstSlab_createdBySuperAdminIdToSuperAdmin")
-  GstSlab_GstSlab_deletedBySuperAdminIdToSuperAdmin               GstSlab[]                  @relation("GstSlab_deletedBySuperAdminIdToSuperAdmin")
-  GstSlab_GstSlab_updatedBySuperAdminIdToSuperAdmin               GstSlab[]                  @relation("GstSlab_updatedBySuperAdminIdToSuperAdmin")
-  HomePageBanner_HomePageBanner_createdBySuperAdminIdToSuperAdmin HomePageBanner[]           @relation("HomePageBanner_createdBySuperAdminIdToSuperAdmin")
-  HomePageBanner_HomePageBanner_deletedBySuperAdminIdToSuperAdmin HomePageBanner[]           @relation("HomePageBanner_deletedBySuperAdminIdToSuperAdmin")
-  HomePageBanner_HomePageBanner_updatedBySuperAdminIdToSuperAdmin HomePageBanner[]           @relation("HomePageBanner_updatedBySuperAdminIdToSuperAdmin")
+  Faq_Faq_createdBySuperAdminIdToSuperAdmin                       Faq[]                        @relation("Faq_createdBySuperAdminIdToSuperAdmin")
+  Faq_Faq_deletedBySuperAdminIdToSuperAdmin                       Faq[]                        @relation("Faq_deletedBySuperAdminIdToSuperAdmin")
+  Faq_Faq_updatedBySuperAdminIdToSuperAdmin                       Faq[]                        @relation("Faq_updatedBySuperAdminIdToSuperAdmin")
+  GstSlab_GstSlab_createdBySuperAdminIdToSuperAdmin               GstSlab[]                    @relation("GstSlab_createdBySuperAdminIdToSuperAdmin")
+  GstSlab_GstSlab_deletedBySuperAdminIdToSuperAdmin               GstSlab[]                    @relation("GstSlab_deletedBySuperAdminIdToSuperAdmin")
+  GstSlab_GstSlab_updatedBySuperAdminIdToSuperAdmin               GstSlab[]                    @relation("GstSlab_updatedBySuperAdminIdToSuperAdmin")
+  HomePageBanner_HomePageBanner_createdBySuperAdminIdToSuperAdmin HomePageBanner[]             @relation("HomePageBanner_createdBySuperAdminIdToSuperAdmin")
+  HomePageBanner_HomePageBanner_deletedBySuperAdminIdToSuperAdmin HomePageBanner[]             @relation("HomePageBanner_deletedBySuperAdminIdToSuperAdmin")
+  HomePageBanner_HomePageBanner_updatedBySuperAdminIdToSuperAdmin HomePageBanner[]             @relation("HomePageBanner_updatedBySuperAdminIdToSuperAdmin")
   PlatformCommissionConfig                                        PlatformCommissionConfig[]
   PlatformConfig                                                  PlatformConfig[]
-  SuperAdminProfile                                               SuperAdminProfile?
-}
+  RefundSettlementPayment                                         RefundSettlementPayment[]
+  SuperAdminDepartmentAccess                                      SuperAdminDepartmentAccess[]
+  SuperAdminSetupToken                                            SuperAdminSetupToken[]
 
-model SuperAdminProfile {
-  id                String                              @id
-  superAdminId      String                              @unique
-  photoUrl          String
-  phone             String                              @unique
-  countryCode       String                              @default("+91")
-  preferredLanguage SuperAdminProfile_preferredLanguage @default(EN)
-  shortBio          String?                             @db.Text
-  createdAt         DateTime                            @default(now())
-  updatedAt         DateTime
-  SuperAdmin        SuperAdmin                          @relation(fields: [superAdminId], references: [id])
+  @@index([deletedBySuperAdminId])
+  @@index([isDeleted])
+  @@index([isPlatformOwner, isDeleted])
 }
 
 model PlatformConfig {
@@ -1233,6 +1260,219 @@ model PlatformConfig {
   SuperAdmin            SuperAdmin? @relation(fields: [updatedBySuperAdminId], references: [id])
 
   @@index([updatedBySuperAdminId], map: "PlatformConfig_updatedBySuperAdminId_fkey")
+}
+
+model AccessSection {
+  id                                String                              @id
+  name                              String                              @unique
+  createdAt                         DateTime                            @default(now())
+  deletedAt                         DateTime?
+  deletedBy                         String?
+  isDeleted                         Boolean                             @default(false)
+  SuperAdminDepartmentAccessSection SuperAdminDepartmentAccessSection[]
+  SuperAdminDepartmentSection       SuperAdminDepartmentSection[]
+
+  @@index([deletedBy])
+  @@index([isDeleted])
+  @@index([name, isDeleted])
+}
+
+model BookingUnitNightPrice {
+  id              String                                 @id
+  bookingId       String
+  bookingUnitId   String
+  unitId          String
+  unitRoomId      String?
+  stayDate        DateTime
+  basePrice       Decimal                                @db.Decimal(10, 2)
+  finalPrice      Decimal                                @db.Decimal(10, 2)
+  appliedRuleId   String?
+  appliedRuleName String?
+  appliedRuleType BookingUnitNightPrice_appliedRuleType?
+  adjustmentType  BookingUnitNightPrice_adjustmentType?
+  ruleAmount      Float?
+  createdAt       DateTime                               @default(now())
+  Booking         Booking                                @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  BookingUnit     BookingUnit                            @relation(fields: [bookingUnitId], references: [id], onDelete: Cascade)
+  Unit            Unit                                   @relation(fields: [unitId], references: [id])
+  UnitRoom        UnitRoom?                              @relation(fields: [unitRoomId], references: [id])
+
+  @@index([bookingId])
+  @@index([bookingUnitId])
+  @@index([stayDate])
+  @@index([unitId])
+  @@index([unitRoomId])
+}
+
+model CommissionInvoice {
+  id                             String                          @id
+  invoiceNumber                  String                          @unique
+  ledgerId                       String                          @unique
+  transferId                     String?
+  transferPaymentId              String?
+  bookingId                      String
+  propertyId                     String
+  adminId                        String
+  createdBySuperAdminId          String?
+  s3Key                          String?                         @db.VarChar(512)
+  fileUrl                        String?                         @db.VarChar(512)
+  invoiceS3Key                   String?                         @db.VarChar(512)
+  invoiceURL                     String?                         @db.VarChar(512)
+  platformGstLegalName           String
+  platformGstNumber              String?                         @db.VarChar(15)
+  platformGstStateCode           String?
+  platformAddress                String?                         @db.Text
+  platformEmail                  String?
+  adminGstLegalName              String
+  adminGstNumber                 String?                         @db.VarChar(15)
+  adminGstStateCode              String?
+  adminBillingAddress            String?                         @db.Text
+  propertyName                   String
+  propertyGstNumber              String?                         @db.VarChar(15)
+  placeOfSupply                  String?
+  bookingCode                    String
+  guestName                      String?
+  checkIn                        DateTime?
+  checkOut                       DateTime?
+  totalBookingValue              Decimal                         @db.Decimal(10, 2)
+  description                    String                          @default("Platform Service Fee")
+  sacCode                        String                          @default("9985")
+  commissionPercent              Float
+  commissionAmount               Decimal                         @db.Decimal(10, 2)
+  cgstPercent                    Float?
+  sgstPercent                    Float?
+  igstPercent                    Float?
+  cgstAmount                     Decimal?                        @db.Decimal(10, 2)
+  sgstAmount                     Decimal?                        @db.Decimal(10, 2)
+  igstAmount                     Decimal?                        @db.Decimal(10, 2)
+  totalTaxOnCommission           Decimal                         @default(0.00) @db.Decimal(10, 2)
+  tcsPercent                     Float?
+  tcsAmount                      Decimal                         @default(0.00) @db.Decimal(10, 2)
+  invoiceTotal                   Decimal                         @db.Decimal(10, 2)
+  invoiceTotalInWords            String?                         @db.Text
+  currency                       String                          @default("INR")
+  status                         CommissionInvoice_status        @default(ISSUED)
+  issuedAt                       DateTime                        @default(now())
+  cancelledAt                    DateTime?
+  settlementReferenceId          String?
+  rawDataJson                    String?                         @db.LongText
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime
+  Admin                          Admin                           @relation(fields: [adminId], references: [id])
+  Booking                        Booking                         @relation(fields: [bookingId], references: [id])
+  SuperAdmin                     SuperAdmin?                     @relation(fields: [createdBySuperAdminId], references: [id])
+  AdminSettlementLedger          AdminSettlementLedger           @relation(fields: [ledgerId], references: [id])
+  Property                       Property                        @relation(fields: [propertyId], references: [id])
+  AdminSuperAdminTransfer        AdminSuperAdminTransfer?        @relation(fields: [transferId], references: [id])
+  AdminSuperAdminTransferPayment AdminSuperAdminTransferPayment? @relation(fields: [transferPaymentId], references: [id])
+
+  @@index([adminId, issuedAt])
+  @@index([bookingId])
+  @@index([createdBySuperAdminId])
+  @@index([propertyId, issuedAt])
+  @@index([status])
+  @@index([transferId])
+  @@index([transferPaymentId])
+}
+
+model PushSubscription {
+  id             String                    @id
+  userId         String
+  userType       PushSubscription_userType
+  endpoint       String                    @db.VarChar(1024)
+  endpointHash   String                    @unique @db.VarChar(64)
+  p256dh         String                    @db.Text
+  auth           String                    @db.Text
+  expirationTime DateTime?
+  userAgent      String?                   @db.Text
+  deviceLabel    String?
+  isActive       Boolean                   @default(true)
+  lastUsedAt     DateTime?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime
+
+  @@index([isActive])
+  @@index([userId, userType])
+}
+
+model SuperAdminDepartment {
+  id                          String                        @id
+  name                        String
+  description                 String?                       @db.Text
+  isActive                    Boolean                       @default(true)
+  createdAt                   DateTime                      @default(now())
+  updatedAt                   DateTime
+  deletedAt                   DateTime?
+  deletedBySuperAdminId       String?
+  isDeleted                   Boolean                       @default(false)
+  SuperAdminDepartmentAccess  SuperAdminDepartmentAccess[]
+  SuperAdminDepartmentSection SuperAdminDepartmentSection[]
+
+  @@index([deletedBySuperAdminId])
+  @@index([isActive])
+  @@index([isDeleted])
+  @@index([name, isDeleted])
+}
+
+model SuperAdminDepartmentAccess {
+  id                                String                              @id
+  superAdminId                      String
+  departmentId                      String
+  isActive                          Boolean                             @default(true)
+  createdAt                         DateTime                            @default(now())
+  updatedAt                         DateTime
+  SuperAdminDepartment              SuperAdminDepartment                @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  SuperAdmin                        SuperAdmin                          @relation(fields: [superAdminId], references: [id], onDelete: Cascade)
+  SuperAdminDepartmentAccessSection SuperAdminDepartmentAccessSection[]
+
+  @@unique([superAdminId, departmentId])
+  @@index([departmentId])
+  @@index([isActive])
+  @@index([superAdminId])
+}
+
+model SuperAdminDepartmentAccessSection {
+  id                           String                     @id
+  superAdminDepartmentAccessId String
+  accessSectionId              String
+  createdAt                    DateTime                   @default(now())
+  AccessSection                AccessSection              @relation(fields: [accessSectionId], references: [id], onDelete: Cascade)
+  SuperAdminDepartmentAccess   SuperAdminDepartmentAccess @relation(fields: [superAdminDepartmentAccessId], references: [id], onDelete: Cascade)
+
+  @@unique([superAdminDepartmentAccessId, accessSectionId])
+  @@index([accessSectionId])
+  @@index([superAdminDepartmentAccessId])
+}
+
+model SuperAdminDepartmentSection {
+  id                   String               @id
+  departmentId         String
+  accessSectionId      String
+  createdAt            DateTime             @default(now())
+  AccessSection        AccessSection        @relation(fields: [accessSectionId], references: [id], onDelete: Cascade)
+  SuperAdminDepartment SuperAdminDepartment @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([departmentId, accessSectionId])
+  @@index([accessSectionId])
+  @@index([departmentId])
+}
+
+model SuperAdminSetupToken {
+  id           String                    @id
+  superAdminId String
+  tokenHash    String                    @unique
+  type         SuperAdminSetupToken_type @default(ACCOUNT_SETUP)
+  isUsed       Boolean                   @default(false)
+  isActive     Boolean                   @default(true)
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime
+  SuperAdmin   SuperAdmin                @relation(fields: [superAdminId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([isActive])
+  @@index([superAdminId])
 }
 
 enum PreferredLanguage {
@@ -1538,12 +1778,6 @@ enum AdminBankDetail_provider {
   OTHER
 }
 
-enum SuperAdminProfile_preferredLanguage {
-  EN
-  HI
-  TE
-}
-
 enum PropertyRefundPolicyLap_refundType {
   NONE
   PERCENTAGE
@@ -1556,15 +1790,44 @@ enum PropertyRefundPolicy_noShowRefundType {
   FIXED_AMOUNT
 }
 
+enum PropertyRefundPolicy_policyType {
+  NO_REFUND
+  FIXED_AFTER_PAYMENT
+  TIME_BASED
+}
+
+enum PushSubscription_userType {
+  CUSTOMER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum SuperAdminSetupToken_type {
+  ACCOUNT_SETUP
+}
+
 enum RefundSettlement_status {
   PENDING
+  PROCESSING
   SUCCESS
   FAILED
   Cancelled
 }
 
-enum PropertyRefundPolicy_policyType {
-  NO_REFUND
-  FIXED_AFTER_PAYMENT
-  TIME_BASED
+enum BookingUnitNightPrice_appliedRuleType {
+  WEEKEND
+  DATE_RANGE
+  LAST_MINUTE
+  EARLY_BIRD
+}
+
+enum BookingUnitNightPrice_adjustmentType {
+  PERCENTAGE
+  FLAT
+}
+
+enum CommissionInvoice_status {
+  DRAFT
+  ISSUED
+  CANCELLED
 }

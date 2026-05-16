@@ -1,28 +1,25 @@
 import { AppError } from "../../utils/appError.js";
 import { prisma } from "../../utils/prisma.js";
-import { env } from "../../config/env.js";
 import {
+  buildEmailChangeLink,
   emailChangeToken,
   verifyEmailChangeToken,
 } from "../../utils/generateEmailVerificationToken.js";
-import jwt from "jsonwebtoken";
 import { Prisma } from "../../generated/prisma/client.js";
+import { env } from "../../config/env.js";
+import jwt from "jsonwebtoken";
+
+const PHONE_VERIFICATION_SECRET = env.JWT_SECRET;
 
 type PhoneVerificationTokenPayload = {
   isVerified: boolean;
-  phone: string; // normalized phone with country code, e.g. "919876543210"
+  phone: string;
 };
 
-const PHONE_VERIFICATION_TOKEN_SECRET = env.JWT_SECRET;
-
-/**
- * Decode and validate the phone verification token.
- * Throws AppError with proper status codes on any problem.
- */
-function decodePhoneVerificationToken(
+function verifyPhoneVerificationToken(
   token: string
 ): PhoneVerificationTokenPayload {
-  if (!PHONE_VERIFICATION_TOKEN_SECRET) {
+  if (!PHONE_VERIFICATION_SECRET) {
     throw new AppError(
       500,
       "Phone verification is temporarily unavailable. Please try again later."
@@ -32,37 +29,42 @@ function decodePhoneVerificationToken(
   try {
     const decoded = jwt.verify(
       token,
-      PHONE_VERIFICATION_TOKEN_SECRET
-    ) as jwt.JwtPayload | string;
+      PHONE_VERIFICATION_SECRET
+    ) as PhoneVerificationTokenPayload | null;
 
-    if (!decoded || typeof decoded === "string") {
-      throw new AppError(400, "Invalid phone verification token.");
-    }
-
-    const { isVerified, phone } =
-      decoded as Partial<PhoneVerificationTokenPayload>;
-
-    if (typeof isVerified !== "boolean" || typeof phone !== "string") {
-      throw new AppError(400, "Invalid phone verification token payload.");
-    }
-
-    return {
-      isVerified,
-      phone: phone.trim(),
-    };
-  } catch (err: any) {
-    if (err?.name === "TokenExpiredError") {
+    if (!decoded || typeof decoded !== "object") {
       throw new AppError(
         400,
-        "Phone verification token has expired. Please verify your phone number again."
+        "Phone number is not verified - Please verify first before update."
       );
     }
 
+    const { phone, isVerified } = decoded;
+
+    if (!phone || !isVerified) {
+      throw new AppError(
+        400,
+        "Phone number is not verified - Please verify first before update."
+      );
+    }
+
+    return { phone, isVerified };
+  } catch (err: any) {
     if (err instanceof AppError) {
       throw err;
     }
 
-    throw new AppError(400, "Invalid phone verification token.");
+    if (err?.name === "TokenExpiredError") {
+      throw new AppError(
+        400,
+        "Phone verification token has expired. Please verify your phone again."
+      );
+    }
+
+    throw new AppError(
+      400,
+      "Invalid phone verification token. Please verify your phone again."
+    );
   }
 }
 
@@ -79,29 +81,36 @@ function normalizeNullableText(value: string | null | undefined) {
   return trimmed || null;
 }
 
-function normalizeCountryCode(
-  value: string | null | undefined,
-  options: { allowNull?: boolean } = {}
-) {
-  const { allowNull = false } = options;
+function normalizeEmail(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase();
 
-  if (value === undefined) {
+  if (!normalized) {
+    throw new AppError(400, "Email is required");
+  }
+
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)) {
+    throw new AppError(400, "Invalid email format");
+  }
+
+  return normalized;
+}
+
+function normalizeCountryCode(value: string | null | undefined) {
+  if (value === undefined || value === null) {
     return undefined;
   }
 
-  if (value === null) {
-    return allowNull ? null : undefined;
+  let normalized = value.trim();
+
+  if (!normalized) {
+    return undefined;
   }
 
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return allowNull ? null : undefined;
+  if (!normalized.startsWith("+")) {
+    normalized = "+" + normalized.replace(/\D/g, "");
+  } else {
+    normalized = "+" + normalized.slice(1).replace(/\D/g, "");
   }
-
-  const normalized = trimmed.startsWith("+")
-    ? `+${trimmed.slice(1).replace(/\D/g, "")}`
-    : `+${trimmed.replace(/\D/g, "")}`;
 
   if (!/^\+\d{1,4}$/.test(normalized)) {
     throw new AppError(400, "Invalid country code. It must be like +91, +1, etc.");
@@ -112,14 +121,15 @@ function normalizeCountryCode(
 
 export const CustomerProfileUpdateService = async (data: {
   customerId: string;
-  fullName?: string;
-  photoUrl?: string;
+  fullName?: string | null;
+  photoUrl?: string | null;
   address?: string | null;
   city?: string | null;
   state?: string | null;
+  email?: string | null;
   countryCode?: string | null;
-  email?: string;
-  verificationToken?: string;
+  verificationToken?: string | null;
+  phoneVerificationToken?: string | null;
 }) => {
   try {
     const {
@@ -129,13 +139,21 @@ export const CustomerProfileUpdateService = async (data: {
       address,
       city,
       state,
-      countryCode,
       email,
+      countryCode,
       verificationToken,
+      phoneVerificationToken,
     } = data;
 
     if (!customerId) {
       throw new AppError(400, "Customer ID is required");
+    }
+
+    if (verificationToken && phoneVerificationToken) {
+      throw new AppError(
+        400,
+        "Use either verificationToken or phoneVerificationToken, not both"
+      );
     }
 
     return await prisma.$transaction(async (tx) => {
@@ -148,57 +166,46 @@ export const CustomerProfileUpdateService = async (data: {
         throw new AppError(404, "Customer not found");
       }
 
-      const currentEmail = customer.email;
-      const currentPhone = customer.CustomerProfile?.phone ?? null;
-      const normalizedEmail = email?.trim();
-
+      const currentProfileEmail = customer.CustomerProfile?.email ?? null;
+      const normalizedEmail =
+        email !== undefined && email !== null ? normalizeEmail(email) : undefined;
       const wantsEmailChange =
-        normalizedEmail !== undefined && normalizedEmail !== currentEmail;
-
+        normalizedEmail !== undefined &&
+        normalizedEmail !== currentProfileEmail;
+      const phoneToken = verificationToken ?? phoneVerificationToken ?? null;
+      const currentPhone = customer.phone ?? null;
+      let decodedPhone: string | null = null;
       let wantsPhoneChange = false;
-      let newPhoneFromToken: string | null = null;
 
-      if (verificationToken) {
-        const { isVerified, phone } = decodePhoneVerificationToken(
-          verificationToken
-        );
+      if (phoneToken) {
+        const tokenPayload = verifyPhoneVerificationToken(phoneToken);
+        const normalizedPhone = String(tokenPayload.phone || "").replace(/\D/g, "");
 
-        if (!isVerified) {
+        if (!normalizedPhone || normalizedPhone.length < 7) {
           throw new AppError(
             400,
-            "Phone number not verified. Verification required."
+            "Invalid phone number in verification token. Please re-verify your phone."
           );
         }
 
-        newPhoneFromToken = phone.trim();
-
-        if (!customer.CustomerProfile) {
-          throw new AppError(
-            404,
-            "Customer profile not found. Please create profile first."
-          );
-        }
-
-        if (!currentPhone || newPhoneFromToken !== currentPhone) {
-          wantsPhoneChange = true;
-        }
-      }
-
-      if (wantsEmailChange && wantsPhoneChange) {
-        throw new AppError(
-          400,
-          "You can update either email or phone at a time, not both."
-        );
+        decodedPhone = normalizedPhone;
+        wantsPhoneChange = decodedPhone !== currentPhone;
       }
 
       const customerUpdateData: Record<string, unknown> = {};
       const profileUpdateData: Record<string, unknown> = {};
 
-      if (fullName !== undefined) {
-        customerUpdateData.fullName = fullName;
+      if (fullName !== undefined && fullName !== null) {
+        const normalizedFullName = fullName.trim();
+
+        if (!normalizedFullName) {
+          throw new AppError(400, "fullName cannot be empty");
+        }
+
+        customerUpdateData.fullName = normalizedFullName;
       }
 
-      if (photoUrl !== undefined) {
+      if (photoUrl !== undefined && photoUrl !== null) {
         const normalizedPhotoUrl = photoUrl.trim();
 
         if (!normalizedPhotoUrl) {
@@ -220,19 +227,76 @@ export const CustomerProfileUpdateService = async (data: {
         profileUpdateData.state = normalizeNullableText(state);
       }
 
-      if (countryCode !== undefined) {
-        profileUpdateData.countryCode = normalizeCountryCode(countryCode, {
-          allowNull: true,
-        });
+      const normalizedCountryCode = normalizeCountryCode(countryCode);
+
+      if (normalizedCountryCode) {
+        customerUpdateData.countryCode = normalizedCountryCode;
       }
 
+      let emailChangeLink: string | null = null;
       let phoneChanged = false;
 
-      if (wantsPhoneChange && newPhoneFromToken) {
-        const phoneExists = await tx.customerProfile.findFirst({
+      if (wantsEmailChange && normalizedEmail) {
+        if (!customer.CustomerProfile || !currentProfileEmail) {
+          throw new AppError(
+            404,
+            "Customer profile not found. Please create profile first."
+          );
+        }
+
+        if (!customer.isActive) {
+          throw new AppError(
+            403,
+            "Cannot update email. Account must be active to change email address"
+          );
+        }
+
+        const emailExistsInProfile = await tx.customerProfile.findFirst({
           where: {
-            phone: newPhoneFromToken,
+            email: normalizedEmail,
             NOT: { customerId },
+          },
+          select: { id: true },
+        });
+
+        if (emailExistsInProfile) {
+          throw new AppError(409, "Email already in use by another customer");
+        }
+
+        const updatedForVersion = await tx.customerProfile.update({
+          where: { customerId },
+          data: {
+            emailVerifyVersion: {
+              increment: 1,
+            },
+          },
+          select: {
+            emailVerifyVersion: true,
+          },
+        });
+
+        const token = emailChangeToken({
+          customerId,
+          newEmail: normalizedEmail,
+          oldEmail: currentProfileEmail,
+          version: updatedForVersion.emailVerifyVersion,
+        });
+
+        emailChangeLink = buildEmailChangeLink(token);
+      }
+
+      if (wantsPhoneChange) {
+        if (!decodedPhone) {
+          throw new AppError(
+            400,
+            "Phone number is not verified - Please verify first before update."
+          );
+        }
+
+        const phoneExists = await tx.customer.findFirst({
+          where: {
+            phone: decodedPhone,
+            NOT: { id: customerId },
           },
           select: { id: true },
         });
@@ -244,70 +308,8 @@ export const CustomerProfileUpdateService = async (data: {
           );
         }
 
-        profileUpdateData.phone = newPhoneFromToken;
+        customerUpdateData.phone = decodedPhone;
         phoneChanged = true;
-      }
-
-      let emailChangeLink: string | null = null;
-
-      if (wantsEmailChange) {
-        if (!normalizedEmail) {
-          throw new AppError(400, "Email is required");
-        }
-
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail)) {
-          throw new AppError(400, "Invalid email format");
-        }
-
-        const emailExistsInCustomer = await tx.customer.findFirst({
-          where: {
-            OR: [
-              { email: normalizedEmail },
-              { pendingEmail: normalizedEmail },
-            ],
-            NOT: { id: customerId },
-          },
-          select: { id: true },
-        });
-
-        if (emailExistsInCustomer) {
-          throw new AppError(
-            409,
-            "Email already in use by another customer"
-          );
-        }
-
-        if (!customer.isActive) {
-          throw new AppError(
-            403,
-            "Cannot update email. Account must be active to change email address"
-          );
-        }
-
-        const updatedForVersion = await tx.customer.update({
-          where: { id: customerId },
-          data: {
-            emailVerifyVersion: {
-              increment: 1,
-            },
-          },
-          select: {
-            id: true,
-            email: true,
-            emailVerifyVersion: true,
-          },
-        });
-
-        const token = emailChangeToken({
-          customerId,
-          newEmail: normalizedEmail,
-          oldEmail: updatedForVersion.email,
-          version: updatedForVersion.emailVerifyVersion,
-        });
-
-        emailChangeLink = `${env.APP_URL}/verify-email-change?token=${encodeURIComponent(
-          token
-        )}`;
       }
 
       const hasCustomerChanges = Object.keys(customerUpdateData).length > 0;
@@ -371,10 +373,6 @@ export const CustomerProfileUpdateService = async (data: {
         const target = (err.meta?.target ?? []) as string[] | string;
         const targets = Array.isArray(target) ? target : [target];
 
-        if (targets.some((t) => t.toLowerCase().includes("phone"))) {
-          throw new AppError(409, "Phone number already in use");
-        }
-
         if (targets.some((t) => t.toLowerCase().includes("email"))) {
           throw new AppError(409, "Email already in use");
         }
@@ -410,7 +408,7 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
       throw new AppError(400, "Email change token is required");
     }
 
-    let payload: any = null;
+    let payload: EmailChangeTokenPayload;
 
     try {
       payload = verifyEmailChangeToken(token) as EmailChangeTokenPayload;
@@ -440,43 +438,53 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
         throw new AppError(404, "Customer not found");
       }
 
-      if (version == null || customer.emailVerifyVersion !== version) {
+      if (!customer.CustomerProfile) {
+        throw new AppError(404, "Customer profile not found");
+      }
+
+      if (version == null || customer.CustomerProfile.emailVerifyVersion !== version) {
         throw new AppError(
           400,
           "This email change link is no longer valid. Please request a new link"
         );
       }
 
-      if (customer.email !== oldEmail) {
+      if (customer.CustomerProfile.email !== oldEmail) {
         throw new AppError(
           400,
           "Email has already been changed or does not match the email change link"
         );
       }
 
-      const emailExistsInCustomer = await tx.customer.findFirst({
+      const emailExistsInProfile = await tx.customerProfile.findFirst({
         where: {
-          OR: [{ email: newEmail }, { pendingEmail: newEmail }],
-          NOT: { id: customerId },
+          email: newEmail,
+          NOT: { customerId },
         },
         select: { id: true },
       });
 
-      if (emailExistsInCustomer) {
+      if (emailExistsInProfile) {
         throw new AppError(
           409,
           "Email already in use by another customer. Please use a different email"
         );
       }
 
-      await tx.customer.update({
-        where: { id: customerId },
+      await tx.customerProfile.update({
+        where: { customerId },
         data: {
           email: newEmail,
-          pendingEmail: null,
           emailVerifyVersion: {
             increment: 1,
           },
+        },
+      });
+
+      await tx.customer.update({
+        where: { id: customerId },
+        data: {
+          isActive: true,
         },
       });
 

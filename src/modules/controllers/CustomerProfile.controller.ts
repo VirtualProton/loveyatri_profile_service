@@ -8,28 +8,28 @@ export const CustomerProfileController = async (
   reply: FastifyReply
 ) => {
   try {
-    const { photoUrl, address, city, state, countryCode, verificationToken } =
-      req.body;
+    const { photoUrl, email, address, city, state } = req.body;
     const customerId = req.user?.id;
 
     if (!customerId) {
       throw new AppError(401, "Unauthorized");
     }
 
-    const profile = await CustomerProfileService({
+    const { profile, emailChangeLink } = await CustomerProfileService({
       customerId,
       photoUrl,
+      email,
       address: address ?? null,
       city: city ?? null,
       state: state ?? null,
-      countryCode: countryCode ?? null,
-      verificationToken,
     });
 
     return reply.status(200).send({
       success: true,
-      message: "Customer profile created successfully.",
+      message:
+        "Customer profile created successfully. Email verification link sent to the email address.",
       profile,
+      emailChangeLink,
     });
   } catch (err: any) {
     // Known application errors

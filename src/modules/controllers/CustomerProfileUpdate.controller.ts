@@ -9,14 +9,23 @@ export const CustomerProfileUpdateController = async (
   reply: FastifyReply
 ) => {
   try {
-    // If you have a typed request, keep this cast:
     const body = req.body as CustomerProfileUpdateRequest["body"];
+    const customerId = req.user?.id;
 
-    const {
-      customer,
-      emailChangeLink,
-      phoneChanged,
-    } = await CustomerProfileUpdateService(body);
+    if (!customerId) {
+      throw new AppError(401, "Unauthorized");
+    }
+
+    const headerToken = req.headers["x-phone-verification-token"];
+    const verificationToken =
+      Array.isArray(headerToken) ? headerToken[0] : headerToken;
+
+    const { customer, emailChangeLink, phoneChanged } =
+      await CustomerProfileUpdateService({
+        ...body,
+        customerId,
+        ...(verificationToken !== undefined ? { verificationToken } : {}),
+      });
 
     // Email change → verification link sent
     if (emailChangeLink) {
@@ -24,29 +33,31 @@ export const CustomerProfileUpdateController = async (
         success: true,
         message:
           "Email change verification link sent to the new email address. Other profile details were updated successfully (if provided).",
+        emailVerificationRequired: true,
         emailChangeLink,
         phoneChanged,
         customer,
       });
     }
 
-    // Phone change (via verified token)
     if (phoneChanged) {
       return reply.status(200).send({
         success: true,
-        message: "Customer profile updated successfully. Phone number updated.",
-        emailChangeLink,
-        phoneChanged,
+        message: "Customer phone number updated successfully.",
+        emailVerificationRequired: false,
+        emailChangeLink: null,
+        phoneChanged: true,
         customer,
       });
     }
 
-    // Only non-email / non-phone fields changed (name, photo, address, etc.)
+    // Only non-email fields changed (name, photo, address, etc.)
     return reply.status(200).send({
       success: true,
       message: "Customer profile updated successfully.",
-      emailChangeLink,
-      phoneChanged,
+      emailVerificationRequired: false,
+      emailChangeLink: null,
+      phoneChanged: false,
       customer,
     });
   } catch (err: any) {

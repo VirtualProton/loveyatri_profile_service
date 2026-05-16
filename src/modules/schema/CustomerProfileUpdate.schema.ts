@@ -1,33 +1,25 @@
 export const CustomerProfileUpdateSchema = {
   type: "object",
-  required: ["customerId"],
   additionalProperties: false,
 
   description:
     "Update customer profile details.\n\n" +
     "Rules:\n" +
-    "- `customerId` is required.\n" +
+    "- Requires a valid access token; customer id is read from the JWT.\n" +
     "- You may update `fullName`, `photoUrl`, `address`, `city`, `state`, or `countryCode` directly.\n" +
     "- To change email, provide a new `email`. A verification link will be generated.\n" +
-    "- To change phone, provide a valid `verificationToken` issued after OTP verification.\n" +
-    "- Email and phone cannot be updated in the same request.",
+    "- To change phone, provide `verificationToken` from the phone OTP verification flow.",
 
   properties: {
-    customerId: {
-      type: "string",
-      example: "a1b2c3d4-uuid",
-      description: "Customer ID (primary key of Customer table).",
-    },
-
     fullName: {
-      type: "string",
+      type: ["string", "null"],
       example: "John Doe",
       description:
         "Updated full name. This updates the `Customer.fullName` field.",
     },
 
     photoUrl: {
-      type: "string",
+      type: ["string", "null"],
       format: "uri",
       example: "https://cdn.example.com/profile.jpg",
       description: "Updated profile image URL. Must be a valid URI.",
@@ -51,45 +43,58 @@ export const CustomerProfileUpdateSchema = {
       description: "Updated state. Pass `null` to clear the state.",
     },
 
-    countryCode: {
-      type: ["string", "null"],
-      pattern: "^\\+\\d{1,4}$",
-      example: "+91",
-      description:
-        "Updated dialing code stored in `CustomerProfile.countryCode`. Pass `null` to clear it.",
-    },
-
     email: {
-      type: "string",
+      type: ["string", "null"],
       format: "email",
       example: "newemail@example.com",
       description:
-        "New email address.\n" +
-        "- Must be unique.\n" +
-        "- Account must be active.\n" +
-        "- A verification link will be generated and must be confirmed before applying the change.",
+        "New profile email address. A verification link is generated and must be confirmed before applying the change.",
+    },
+
+    countryCode: {
+      type: ["string", "null"],
+      example: "+91",
+      description:
+        "Customer country calling code. Empty strings and null are ignored.",
     },
 
     verificationToken: {
-      type: "string",
-      description:
-        "JWT token issued after successful phone OTP verification.\n" +
-        "- Used to update phone number.\n" +
-        "- Must contain `{ isVerified: true, phone: <normalizedPhone> }`.\n" +
-        "- Cannot be used together with `email` in the same request.",
+      type: ["string", "null"],
       example:
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc1ZlcmlmaWVkIjp0cnVlLCJwaG9uZSI6IjkxOTg3NjU0MzIxMCJ9.signature",
+      description:
+        "JWT issued after phone OTP verification. The token payload must include `isVerified: true` and `phone`.",
+    },
+
+    phoneVerificationToken: {
+      type: ["string", "null"],
+      description:
+        "Deprecated alias for `verificationToken`. Use `verificationToken` for new clients.",
     },
   },
 
+  anyOf: [
+    { required: ["fullName"] },
+    { required: ["photoUrl"] },
+    { required: ["address"] },
+    { required: ["city"] },
+    { required: ["state"] },
+    { required: ["email"] },
+    { required: ["countryCode"] },
+    { required: ["verificationToken"] },
+    { required: ["phoneVerificationToken"] },
+  ],
+
+  not: {
+    required: ["verificationToken", "phoneVerificationToken"],
+  },
+
   errorMessage: {
-    required: {
-      customerId: "customerId is required",
-    },
+    anyOf: "At least one updatable field must be provided.",
+    not: "Use either verificationToken or phoneVerificationToken, not both.",
     properties: {
       email: "email must be a valid email address",
       photoUrl: "photoUrl must be a valid URI",
-      countryCode: "countryCode must be a valid format like +91, +1, etc.",
     },
     additionalProperties: "Additional properties are not allowed",
   },
@@ -100,14 +105,20 @@ export const ResponseSchema = {
     200: {
       description:
         "Customer profile updated successfully.\n\n" +
-        "Behaviours:\n" +
-        "- If only profile info (`fullName`, `photoUrl`, `address`, `city`, `state`, `countryCode`) is changed, returns the updated customer.\n" +
-        "- If email is changed, an email-change verification link is generated and returned.\n" +
+        "- If profile info is changed, returns the updated customer.\n" +
+        "- If email is changed, an email verification link is generated and returned.\n" +
         "- If phone is changed via `verificationToken`, the phone is updated immediately.",
 
       type: "object",
       additionalProperties: false,
-      required: ["success", "message", "customer"],
+      required: [
+        "success",
+        "message",
+        "emailVerificationRequired",
+        "emailChangeLink",
+        "phoneChanged",
+        "customer",
+      ],
 
       properties: {
         success: { type: "boolean", example: true },
@@ -115,141 +126,93 @@ export const ResponseSchema = {
         message: {
           type: "string",
           example: "Customer profile updated successfully.",
+        },
+
+        emailVerificationRequired: {
+          type: "boolean",
+          example: false,
           description:
-            "Human-readable message. May indicate if email or phone change was performed.",
+            "True when email was changed and verification via email link is required.",
         },
 
         emailChangeLink: {
           type: ["string", "null"],
           example: null,
           description:
-            "Email change verification link. Non-null only when a new email was requested.",
+            "Email verification link. Non-null only when a new email was requested.",
         },
 
         phoneChanged: {
           type: "boolean",
           example: false,
           description:
-            "Indicates whether the phone number was updated in this request.",
+            "True if the phone number was updated using a verified phone token.",
         },
 
         customer: {
           type: "object",
-          description:
-            "Updated customer entity with attached CustomerProfile (if present).",
           additionalProperties: false,
           required: [
             "id",
             "fullName",
-            "email",
-            "pendingEmail",
+            "phone",
+            "countryCode",
             "isActive",
             "isProfileComplete",
+            "CustomerProfile",
           ],
           properties: {
             id: { type: "string", example: "customer-uuid" },
-
-            fullName: {
+            fullName: { type: "string", example: "John Doe" },
+            phone: {
               type: "string",
-              example: "John Doe",
-              description: "Customer's full name.",
+              example: "919876543210",
+              description: "Normalized phone number with digits only.",
             },
-
-            email: {
-              type: ["string", "null"],
-              example: "john@example.com",
-              description:
-                "Primary email of the customer. May remain unchanged if email verification is pending.",
+            countryCode: {
+              type: "string",
+              example: "+91",
+              description: "Customer country calling code.",
             },
-
-            pendingEmail: {
-              type: ["string", "null"],
-              example: "newemail@example.com",
-              description:
-                "Pending new email, if your flow uses it. May be null.",
-            },
-
-            isActive: {
-              type: "boolean",
-              example: true,
-              description: "Indicates whether the customer account is active.",
-            },
-
-            isProfileComplete: {
-              type: "boolean",
-              example: true,
-              description:
-                "Indicates whether the customer has completed their profile.",
-            },
+            isActive: { type: "boolean", example: true },
+            isProfileComplete: { type: "boolean", example: true },
 
             CustomerProfile: {
               type: ["object", "null"],
-              description:
-                "Profile details for this customer. Null if profile does not exist.",
               additionalProperties: false,
               properties: {
-                id: {
+                id: { type: "string", example: "profile-uuid" },
+                customerId: { type: "string", example: "customer-uuid" },
+                email: {
                   type: "string",
-                  example: "profile-uuid",
-                  description: "Profile ID.",
+                  format: "email",
+                  example: "john@example.com",
                 },
-
-                customerId: {
-                  type: "string",
-                  example: "customer-uuid",
-                  description: "Customer ID this profile belongs to.",
-                },
-
-                phone: {
-                  type: ["string", "null"],
-                  example: "919876543210",
-                  description:
-                    "Normalized phone number with country code. May be null if not set.",
-                },
-
                 photoUrl: {
                   type: ["string", "null"],
                   example: "https://cdn.example.com/profile.jpg",
-                  description: "Profile picture URL.",
                 },
-
-                countryCode: {
-                  type: ["string", "null"],
-                  example: "+91",
-                  description:
-                    "Country dialing code. Defaults to '+91' if not set.",
-                },
-
                 address: {
                   type: ["string", "null"],
                   example: "123 Main Street, City, State, 12345",
-                  description: "Customer address stored in the profile.",
                 },
-
                 city: {
                   type: ["string", "null"],
                   example: "Hyderabad",
-                  description: "Customer city stored in the profile.",
                 },
-
                 state: {
                   type: ["string", "null"],
                   example: "Telangana",
-                  description: "Customer state stored in the profile.",
                 },
-
                 createdAt: {
                   type: "string",
                   format: "date-time",
                   example: "2026-02-23T06:20:15.000Z",
-                  description: "Profile creation timestamp.",
                 },
-
                 updatedAt: {
                   type: "string",
                   format: "date-time",
                   example: "2026-02-23T06:30:45.000Z",
-                  description: "Last profile update timestamp.",
                 },
               },
             },
@@ -260,7 +223,7 @@ export const ResponseSchema = {
 
     403: {
       description:
-        "Forbidden typically returned when attempting to change email for an inactive account.",
+        "Forbidden when attempting to change email for an inactive account.",
       type: "object",
       additionalProperties: false,
       required: ["success", "message"],
@@ -301,7 +264,7 @@ export const ResponseSchema = {
         message: {
           type: "string",
           example:
-            "Phone number already in use by another customer / Email already in use by another customer",
+            "Email already in use by another customer / Phone number already in use by another customer",
         },
       },
     },

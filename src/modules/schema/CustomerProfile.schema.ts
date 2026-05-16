@@ -1,6 +1,6 @@
 export const CustomerProfileSchema = {
   type: "object",
-  required: ["photoUrl", "verificationToken"],
+  required: ["photoUrl", "email"],
   additionalProperties: false,
 
   properties: {
@@ -12,14 +12,12 @@ export const CustomerProfileSchema = {
         "Public URL of the customer's profile photo. Must be a valid URI.",
     },
 
-    verificationToken: {
+    email: {
       type: "string",
+      format: "email",
+      example: "john@example.com",
       description:
-        "JWT token issued after successful phone number verification.\n" +
-        "This token encodes `isVerified` and the normalized phone number (with country code, e.g. `919876543210`).\n" +
-        "If missing, invalid, or expired, the request will be rejected.",
-      example:
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc1ZlcmlmaWVkIjp0cnVlLCJwaG9uZSI6IjkxOTg3NjU0MzIxMCJ9.signature",
+        "Customer profile email. A verification link is generated for this address.",
     },
 
     address: {
@@ -42,22 +40,16 @@ export const CustomerProfileSchema = {
       example: "Telangana",
       description: "Optional state for the customer profile.",
     },
-
-    countryCode: {
-      type: "string",
-      nullable: true,
-      pattern: "^\\+\\d{1,4}$",
-      example: "+91",
-      description:
-        "Optional dialing code stored on the profile. If omitted, Prisma applies the default `+91`.",
-    },
   },
 
   errorMessage: {
     required: {
       photoUrl: "photoUrl is required",
-      verificationToken:
-        "verificationToken (phone verification token) is required",
+      email: "email is required",
+    },
+    properties: {
+      email: "email must be a valid email address",
+      photoUrl: "photoUrl must be a valid URI",
     },
     additionalProperties:
       "Additional properties are not allowed in the request body",
@@ -67,38 +59,39 @@ export const CustomerProfileSchema = {
 export const CustomerProfileResponseSchema = {
   200: {
     description:
-      "Customer profile created successfully.\n\n" +
-      "- Phone number is taken from the verified token and stored as unique `phone`.\n" +
-      "- `countryCode` defaults to '+91' if not provided.\n" +
-      "- Customer is marked as `isProfileComplete = true` and `isActive = true`.",
+      "Customer profile created successfully. Email verification link is generated for the provided email address.",
 
     type: "object",
     additionalProperties: false,
-    required: ["success", "message", "profile"],
+    required: ["success", "message", "profile", "emailChangeLink"],
 
     properties: {
       success: {
         type: "boolean",
         example: true,
-        description: "Indicates whether the request was successful.",
       },
 
       message: {
         type: "string",
-        example: "Customer profile created successfully.",
-        description: "Human-readable message describing the result.",
+        example:
+          "Customer profile created successfully. Email verification link sent to the email address.",
+      },
+
+      emailChangeLink: {
+        type: "string",
+        example:
+          "https://api.example.com/verify-email-change?token=verification-token",
+        description: "Email verification link for the created profile email.",
       },
 
       profile: {
         type: "object",
-        description: "Newly created customer profile with linked customer summary.",
         additionalProperties: false,
         required: [
           "id",
           "customerId",
           "photoUrl",
-          "phone",
-          "countryCode",
+          "email",
           "address",
           "city",
           "state",
@@ -107,88 +100,46 @@ export const CustomerProfileResponseSchema = {
           "Customer",
         ],
         properties: {
-          id: {
-            type: "string",
-            example: "profile-uuid",
-            description: "Profile ID (UUID).",
-          },
-
-          customerId: {
-            type: "string",
-            example: "customer-uuid",
-            description: "Customer ID this profile belongs to.",
-          },
-
+          id: { type: "string", example: "profile-uuid" },
+          customerId: { type: "string", example: "customer-uuid" },
           photoUrl: {
             type: "string",
             example: "https://cdn.example.com/profile-images/john-doe.jpg",
-            description: "URL of the profile picture.",
           },
-
-          phone: {
+          email: {
             type: "string",
-            example: "919876543210",
-            description:
-              "Normalized phone number including country code, stored as unique for the profile.",
+            format: "email",
+            example: "john@example.com",
           },
-
-          countryCode: {
-            type: ["string", "null"],
-            example: "+91",
-            description:
-              "Country dialing code. Defaults to '+91' if not explicitly set.",
-          },
-
           address: {
             type: ["string", "null"],
             example: "123 Main Street, Hyderabad, Telangana, 500001",
-            description: "Optional customer address.",
           },
-
           city: {
             type: ["string", "null"],
             example: "Hyderabad",
-            description: "Optional customer city.",
           },
-
           state: {
             type: ["string", "null"],
             example: "Telangana",
-            description: "Optional customer state.",
           },
-
           createdAt: {
             type: "string",
             format: "date-time",
             example: "2026-02-23T06:20:15.000Z",
-            description: "ISO timestamp when the profile was created.",
           },
-
           updatedAt: {
             type: "string",
             format: "date-time",
             example: "2026-02-23T06:20:15.000Z",
-            description: "ISO timestamp when the profile was last updated.",
           },
-
           Customer: {
             type: "object",
-            description:
-              "Minimal customer data joined from the Customer table (via Prisma `include`).",
             additionalProperties: false,
-            required: ["fullName", "email"],
+            required: ["fullName", "isActive"],
             properties: {
-              fullName: {
-                type: "string",
-                example: "John Doe",
-                description: "Customer's full name from the Customer table.",
-              },
-              email: {
-                type: ["string", "null"],
-                example: "john@example.com",
-                description:
-                  "Customer's email from the Customer table. May be null in some cases.",
-              },
+              fullName: { type: "string", example: "John Doe" },
+              isActive: { type: "boolean", example: false },
             },
           },
         },
@@ -198,11 +149,7 @@ export const CustomerProfileResponseSchema = {
 
   400: {
     description:
-      "Bad request validation failed or phone verification token is invalid/expired.\n\n" +
-      "Returned when:\n" +
-      "- Required fields are missing.\n" +
-      "- `verificationToken` is missing, invalid, or expired.\n" +
-      "- Token payload is malformed.",
+      "Bad request validation failed, usually because required fields are missing or email is invalid.",
     type: "object",
     additionalProperties: false,
     required: ["success", "message"],
@@ -210,14 +157,13 @@ export const CustomerProfileResponseSchema = {
       success: { type: "boolean", example: false },
       message: {
         type: "string",
-        example:
-          "Phone verification token has expired. Please verify your phone number again.",
+        example: "Email is required.",
       },
     },
   },
 
   404: {
-    description: "Customer not found for the given customerId.",
+    description: "Customer not found for the authenticated customer id.",
     type: "object",
     additionalProperties: false,
     required: ["success", "message"],
@@ -229,10 +175,7 @@ export const CustomerProfileResponseSchema = {
 
   409: {
     description:
-      "Conflict profile or phone number already used.\n\n" +
-      "Returned when:\n" +
-      "- Customer already has a profile.\n" +
-      "- Phone number (from token) is already linked to another profile.",
+      "Conflict returned when the customer already has a profile or the email is already used.",
     type: "object",
     additionalProperties: false,
     required: ["success", "message"],
@@ -240,15 +183,14 @@ export const CustomerProfileResponseSchema = {
       success: { type: "boolean", example: false },
       message: {
         type: "string",
-        example: "Profile already completed. / Phone number already in use.",
+        example: "Profile already completed. / Email already in use.",
       },
     },
   },
 
   500: {
     description:
-      "Unexpected server or database error while creating the profile. " +
-      "Caller should retry or contact support if it persists.",
+      "Unexpected server or database error while creating the profile.",
     type: "object",
     additionalProperties: false,
     required: ["success", "message"],
