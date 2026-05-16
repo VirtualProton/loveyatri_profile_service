@@ -13,7 +13,33 @@ export const ResponseSchema = {
   CustomerProfileGetResponseSchema: {
     200: {
       type: "object",
+      additionalProperties: false,
       required: ["success", "message", "customer"],
+      example: {
+        success: true,
+        message: "Customer details retrieved successfully",
+        customer: {
+          id: "customer-uuid",
+          fullName: "John Doe",
+          phone: "919876543210",
+          countryCode: "+91",
+          isActive: true,
+          isProfileComplete: true,
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+          CustomerProfile: {
+            id: "profile-uuid",
+            customerId: "customer-uuid",
+            photoUrl: "https://cdn.example.com/profile.jpg",
+            email: "john@example.com",
+            address: "123 Main Street, City, State, 12345",
+            city: "Hyderabad",
+            state: "Telangana",
+            createdAt: "2024-01-01T00:00:00.000Z",
+            updatedAt: "2024-01-01T00:00:00.000Z",
+          },
+        },
+      },
       properties: {
         success: { type: "boolean", example: true },
         message: {
@@ -22,6 +48,7 @@ export const ResponseSchema = {
         },
         customer: {
           type: "object",
+          additionalProperties: false,
           required: [
             "id",
             "fullName",
@@ -59,7 +86,10 @@ export const ResponseSchema = {
               example: "2024-01-01T00:00:00.000Z",
             },
             CustomerProfile: {
-              type: ["object", "null"],
+              type: "object",
+              nullable: true,
+              additionalProperties: false,
+              example: null,
               required: [
                 "id",
                 "customerId",
