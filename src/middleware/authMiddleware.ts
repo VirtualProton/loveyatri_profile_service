@@ -6,8 +6,9 @@ import { isTokenBlacklisted } from "../utils/tokenBlacklist.js";
 
 export interface JWTPayload {
     id: string;
-    email: string;
+    email?: string;
     role: string;
+    phone?: string;
     permissions: string[];
     isProfileComplete: boolean;
 }
@@ -40,6 +41,16 @@ export const authenticateToken = async (
 
         // Verify and decode token
         const decoded = jwt.verify(token, env.JWT_SECRET) as JWTPayload;
+        console.log("Decoded Token:", decoded);
+
+        const hasEmail =
+            typeof decoded.email === "string" && decoded.email.trim().length > 0;
+        const hasPhone =
+            typeof decoded.phone === "string" && decoded.phone.trim().length > 0;
+
+        if (!hasEmail && !hasPhone) {
+            throw new AppError(401, "Invalid token payload");
+        }
 
         // Attach user data to request
         req.user = decoded;
