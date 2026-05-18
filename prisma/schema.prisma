@@ -126,6 +126,8 @@ model Property {
   advancePaymentValue       Float                   @default(0)
   areaSqFt                  Float?
   propertyCode              String?
+  checkinTime               String?
+  checkoutTime              String?
   AdminSettlementLedger     AdminSettlementLedger[]
   Booking                   Booking[]
   BookingCreditNote         BookingCreditNote[]
@@ -359,17 +361,17 @@ model Customer {
 }
 
 model CustomerProfile {
-  id         String   @id @default(uuid())
-  customerId String   @unique
-  photoUrl   String
-  address    String?  @db.Text
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  city       String?
-  state      String?
-  email      String   @unique
-  emailVerifyVersion        Int                         @default(0)
-  Customer   Customer @relation(fields: [customerId], references: [id])
+  id                 String   @id @default(uuid())
+  customerId         String   @unique
+  photoUrl           String
+  address            String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  city               String?
+  state              String?
+  email              String   @unique
+  emailVerifyVersion Int      @default(0)
+  Customer           Customer @relation(fields: [customerId], references: [id])
 }
 
 model Coupon {
@@ -912,7 +914,7 @@ model HomePageBanner {
   ctaText                                                     String?
   ctaUrl                                                      String?
   openInNewTab                                                Boolean               @default(false)
-  position                                                    Int                   @unique
+  position                                                    Int
   status                                                      HomePageBanner_status @default(INACTIVE)
   startsAt                                                    DateTime?
   endsAt                                                      DateTime?
