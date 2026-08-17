@@ -30,7 +30,7 @@ export const ResponseSchema = {
           CustomerProfile: {
             id: "profile-uuid",
             customerId: "customer-uuid",
-            photoUrl: "https://cdn.example.com/profile.jpg",
+            photoUrl: null,
             email: "john@example.com",
             address: "123 Main Street, City, State, 12345",
             city: "Hyderabad",
@@ -93,7 +93,6 @@ export const ResponseSchema = {
               required: [
                 "id",
                 "customerId",
-                "photoUrl",
                 "email",
                 "address",
                 "city",
@@ -110,7 +109,7 @@ export const ResponseSchema = {
                   example: "john@example.com",
                 },
                 photoUrl: {
-                  type: "string",
+                  type: ["string", "null"],
                   example: "https://cdn.example.com/profile.jpg",
                 },
                 address: {

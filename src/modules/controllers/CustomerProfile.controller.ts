@@ -17,7 +17,7 @@ export const CustomerProfileController = async (
 
     const { profile, emailChangeLink } = await CustomerProfileService({
       customerId,
-      photoUrl,
+      photoUrl: photoUrl ?? null,
       email,
       address: address ?? null,
       city: city ?? null,

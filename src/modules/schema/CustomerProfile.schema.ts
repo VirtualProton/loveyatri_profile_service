@@ -1,15 +1,15 @@
 export const CustomerProfileSchema = {
   type: "object",
-  required: ["photoUrl", "email"],
+  required: ["email"],
   additionalProperties: false,
 
   properties: {
     photoUrl: {
-      type: "string",
+      type: ["string", "null"],
       format: "uri",
       example: "https://cdn.example.com/profile-images/john-doe.jpg",
       description:
-        "Public URL of the customer's profile photo. Must be a valid URI.",
+        "Optional public URL of the customer's profile photo. Must be a valid URI when provided.",
     },
 
     email: {
@@ -44,7 +44,6 @@ export const CustomerProfileSchema = {
 
   errorMessage: {
     required: {
-      photoUrl: "photoUrl is required",
       email: "email is required",
     },
     properties: {
@@ -103,7 +102,7 @@ export const CustomerProfileResponseSchema = {
           id: { type: "string", example: "profile-uuid" },
           customerId: { type: "string", example: "customer-uuid" },
           photoUrl: {
-            type: "string",
+            type: ["string", "null"],
             example: "https://cdn.example.com/profile-images/john-doe.jpg",
           },
           email: {

@@ -35,7 +35,7 @@ function normalizeEmail(value: string | null | undefined) {
 
 export type CreateCustomerProfileInput = {
   customerId: string;
-  photoUrl: string;
+  photoUrl?: string | null;
   email: string;
   address?: string | null;
   city?: string | null;
@@ -52,15 +52,8 @@ export const CustomerProfileService = async (
       throw new AppError(400, "Valid customerId is required.");
     }
 
-    if (!photoUrl || typeof photoUrl !== "string") {
-      throw new AppError(400, "Valid photoUrl is required.");
-    }
-
-    const normalizedPhotoUrl = photoUrl.trim();
-
-    if (!normalizedPhotoUrl) {
-      throw new AppError(400, "Valid photoUrl is required.");
-    }
+    const normalizedPhotoUrl =
+      typeof photoUrl === "string" ? photoUrl.trim() || null : null;
 
     const normalizedEmail = normalizeEmail(email);
     const normalizedAddress = normalizeNullableText(address);

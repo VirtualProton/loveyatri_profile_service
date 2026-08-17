@@ -49,7 +49,7 @@ export type OwnerProfileUpdateRequest = FastifyRequest<{
 
 export type CustomerProfileRequest = FastifyRequest<{
     Body: {
-        photoUrl: string;
+        photoUrl?: string | null;
         email: string;
         address?: string | null;
         city?: string | null;

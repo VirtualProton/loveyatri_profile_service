@@ -205,14 +205,9 @@ export const CustomerProfileUpdateService = async (data: {
         customerUpdateData.fullName = normalizedFullName;
       }
 
-      if (photoUrl !== undefined && photoUrl !== null) {
-        const normalizedPhotoUrl = photoUrl.trim();
-
-        if (!normalizedPhotoUrl) {
-          throw new AppError(400, "photoUrl cannot be empty");
-        }
-
-        profileUpdateData.photoUrl = normalizedPhotoUrl;
+      if (photoUrl !== undefined) {
+        profileUpdateData.photoUrl =
+          typeof photoUrl === "string" ? photoUrl.trim() || null : null;
       }
 
       if (address !== undefined) {

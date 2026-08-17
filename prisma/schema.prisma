@@ -29,6 +29,7 @@ model Admin {
   updatedAt                               DateTime                  @updatedAt
   resetPasswordVersion                    Int                       @default(0)
   emailVerifyVersion                      Int                       @default(0)
+  isBlocked                               Boolean                   @default(false)
   AdminBankDetail                         AdminBankDetail[]
   profile                                 AdminProfile?             @relation("AdminProfile")
   AdminSettlementLedger                   AdminSettlementLedger[]
@@ -128,6 +129,9 @@ model Property {
   propertyCode              String?
   checkinTime               String?
   checkoutTime              String?
+  slug                      String?                 @unique
+  metaDescription           String?
+  metaTitle                 String?
   AdminSettlementLedger     AdminSettlementLedger[]
   Booking                   Booking[]
   BookingCreditNote         BookingCreditNote[]
@@ -363,7 +367,7 @@ model Customer {
 model CustomerProfile {
   id                 String   @id @default(uuid())
   customerId         String   @unique
-  photoUrl           String
+  photoUrl           String?
   address            String?  @db.Text
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -522,6 +526,10 @@ model Booking {
   confirmVoucharPdfUrl                  String?
   confirmVoucharS3Key                   String?
   taxableAmount                         Decimal                     @default(0.00) @db.Decimal(10, 2)
+  checkInNote                           String?                     @db.Text
+  checkOutNote                          String?                     @db.Text
+  guestCheckedInAt                      DateTime?
+  guestCheckedOutAt                     DateTime?
   AdminSettlementLedger                 AdminSettlementLedger?
   Admin                                 Admin                       @relation(fields: [adminId], references: [id])
   Coupon                                Coupon?                     @relation(fields: [couponId], references: [id])
@@ -905,7 +913,7 @@ model GstSlab {
 
 model HomePageBanner {
   id                                                          String                @id
-  title                                                       String
+  title                                                       String?
   subtitle                                                    String?               @db.Text
   imageUrl                                                    String
   imageAlt                                                    String?
@@ -1230,6 +1238,8 @@ model SuperAdmin {
   HomePageBanner_HomePageBanner_updatedBySuperAdminIdToSuperAdmin HomePageBanner[]             @relation("HomePageBanner_updatedBySuperAdminIdToSuperAdmin")
   PlatformCommissionConfig                                        PlatformCommissionConfig[]
   PlatformConfig                                                  PlatformConfig[]
+  PushInstallation_PushInstallation_adminDisabledByIdToSuperAdmin PushInstallation[]           @relation("PushInstallation_adminDisabledByIdToSuperAdmin")
+  PushInstallation_PushInstallation_reactivatedByIdToSuperAdmin   PushInstallation[]           @relation("PushInstallation_reactivatedByIdToSuperAdmin")
   RefundSettlementPayment                                         RefundSettlementPayment[]
   SuperAdminDepartmentAccess                                      SuperAdminDepartmentAccess[]
   SuperAdminSetupToken                                            SuperAdminSetupToken[]
@@ -1259,6 +1269,9 @@ model PlatformConfig {
   GstNumber             String
   GstStateCode          String
   State                 String?
+  YoutubeLink           String?
+  androidAppLink        String?
+  iosAppLink            String?
   SuperAdmin            SuperAdmin? @relation(fields: [updatedBySuperAdminId], references: [id])
 
   @@index([updatedBySuperAdminId], map: "PlatformConfig_updatedBySuperAdminId_fkey")
@@ -1266,7 +1279,7 @@ model PlatformConfig {
 
 model AccessSection {
   id                                String                              @id
-  name                              String                              @unique
+  name                              String
   createdAt                         DateTime                            @default(now())
   deletedAt                         DateTime?
   deletedBy                         String?
@@ -1377,26 +1390,6 @@ model CommissionInvoice {
   @@index([transferPaymentId])
 }
 
-model PushSubscription {
-  id             String                    @id
-  userId         String
-  userType       PushSubscription_userType
-  endpoint       String                    @db.VarChar(1024)
-  endpointHash   String                    @unique @db.VarChar(64)
-  p256dh         String                    @db.Text
-  auth           String                    @db.Text
-  expirationTime DateTime?
-  userAgent      String?                   @db.Text
-  deviceLabel    String?
-  isActive       Boolean                   @default(true)
-  lastUsedAt     DateTime?
-  createdAt      DateTime                  @default(now())
-  updatedAt      DateTime
-
-  @@index([isActive])
-  @@index([userId, userType])
-}
-
 model SuperAdminDepartment {
   id                          String                        @id
   name                        String
@@ -1475,6 +1468,285 @@ model SuperAdminSetupToken {
   @@index([expiresAt])
   @@index([isActive])
   @@index([superAdminId])
+}
+
+model AppVersion {
+  id             String              @id
+  platform       AppVersion_platform
+  latestVersion  String
+  minimumVersion String
+  forceUpdate    Boolean             @default(false)
+  softUpdate     Boolean             @default(true)
+  inAppUpdate    Boolean             @default(false)
+  updateTitle    String?
+  updateMessage  String?
+  releaseNotes   Json?
+  playStoreUrl   String?
+  appStoreUrl    String?
+  isActive       Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime
+
+  @@index([isActive])
+  @@index([platform])
+  @@index([platform, isActive])
+}
+
+model Notification {
+  id                    String                      @id
+  userId                String?
+  userType              Notification_userType?
+  title                 String
+  message               String                      @db.Text
+  type                  Notification_type
+  status                Notification_status         @default(UNREAD)
+  data                  Json?
+  actionUrl             String?                     @db.Text
+  imageUrl              String?                     @db.Text
+  readAt                DateTime?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime
+  sourceId              String?
+  sourceType            String?                     @db.VarChar(100)
+  createdBy             String?
+  deletedAt             DateTime?
+  deletedBy             String?
+  isDeleted             Boolean                     @default(false)
+  audienceFilter        Json?
+  audienceType          Notification_audienceType   @default(USER)
+  cancelledAt           DateTime?
+  cancelledById         String?
+  createdById           String?
+  createdByType         Notification_createdByType?
+  dispatchStatus        Notification_dispatchStatus @default(QUEUED)
+  expiresAt             DateTime?
+  idempotencyKey        String?                     @unique
+  isTransactional       Boolean                     @default(true)
+  priority              Notification_priority       @default(NORMAL)
+  processedAt           DateTime?
+  scheduledAt           DateTime?
+  templateId            String?
+  NotificationTemplate  NotificationTemplate?       @relation(fields: [templateId], references: [id])
+  NotificationRecipient NotificationRecipient[]
+  PushDelivery          PushDelivery[]
+
+  @@unique([userId, userType, type, sourceType, sourceId])
+  @@index([audienceType])
+  @@index([createdAt])
+  @@index([createdBy])
+  @@index([deletedBy])
+  @@index([dispatchStatus, scheduledAt])
+  @@index([sourceType, sourceId])
+  @@index([templateId], map: "Notification_templateId_fkey")
+  @@index([type])
+  @@index([userId, userType])
+  @@index([userId, userType, status])
+}
+
+model NotificationIdentity {
+  id                     String                        @id
+  userId                 String
+  userType               NotificationIdentity_userType
+  createdAt              DateTime                      @default(now())
+  updatedAt              DateTime
+  NotificationPreference NotificationPreference[]
+  NotificationRecipient  NotificationRecipient[]
+  PushInstallation       PushInstallation[]
+
+  @@unique([userId, userType])
+  @@index([userType])
+}
+
+model NotificationPreference {
+  id                    String                      @id
+  identityId            String
+  type                  NotificationPreference_type
+  pushEnabled           Boolean                     @default(true)
+  inAppEnabled          Boolean                     @default(true)
+  quietHoursStartMinute Int?
+  quietHoursEndMinute   Int?
+  timezone              String?                     @db.VarChar(100)
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime
+  NotificationIdentity  NotificationIdentity        @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  @@unique([identityId, type])
+  @@index([identityId])
+}
+
+model NotificationRecipient {
+  id                   String                           @id
+  notificationId       String
+  identityId           String
+  readStatus           NotificationRecipient_readStatus @default(UNREAD)
+  readAt               DateTime?
+  openedAt             DateTime?
+  clickedAt            DateTime?
+  dismissedAt          DateTime?
+  archivedAt           DateTime?
+  createdAt            DateTime                         @default(now())
+  updatedAt            DateTime
+  NotificationIdentity NotificationIdentity             @relation(fields: [identityId], references: [id])
+  Notification         Notification                     @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  PushDelivery         PushDelivery[]
+
+  @@unique([notificationId, identityId])
+  @@index([identityId, createdAt])
+  @@index([identityId, readStatus])
+  @@index([notificationId])
+}
+
+model NotificationTemplate {
+  id                String                               @id
+  key               String                               @db.VarChar(100)
+  version           Int                                  @default(1)
+  type              NotificationTemplate_type
+  titleTemplate     String
+  messageTemplate   String                               @db.Text
+  dataTemplate      Json?
+  actionUrlTemplate String?                              @db.Text
+  imageUrlTemplate  String?                              @db.Text
+  defaultPriority   NotificationTemplate_defaultPriority @default(NORMAL)
+  isTransactional   Boolean                              @default(true)
+  isActive          Boolean                              @default(true)
+  createdAt         DateTime                             @default(now())
+  updatedAt         DateTime
+  Notification      Notification[]
+
+  @@unique([key, version])
+  @@index([type, isActive])
+}
+
+model PushDelivery {
+  id                    String                 @id
+  notificationId        String
+  recipientId           String?
+  pushEndpointId        String
+  status                PushDelivery_status    @default(PENDING)
+  attemptCount          Int                    @default(0)
+  maxAttempts           Int                    @default(5)
+  nextRetryAt           DateTime?
+  providerMessageId     String?                @db.VarChar(255)
+  queuedAt              DateTime?
+  sentAt                DateTime?
+  deliveredAt           DateTime?
+  failedAt              DateTime?
+  receivedAt            DateTime?
+  displayedAt           DateTime?
+  openedAt              DateTime?
+  lastAcknowledgedAt    DateTime?
+  lastErrorCode         String?
+  lastErrorMessage      String?                @db.Text
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime
+  Notification          Notification           @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  PushEndpoint          PushEndpoint           @relation(fields: [pushEndpointId], references: [id])
+  NotificationRecipient NotificationRecipient? @relation(fields: [recipientId], references: [id])
+  PushDeliveryAttempt   PushDeliveryAttempt[]
+
+  @@unique([notificationId, pushEndpointId])
+  @@index([providerMessageId])
+  @@index([pushEndpointId])
+  @@index([recipientId])
+  @@index([status, nextRetryAt])
+}
+
+model PushDeliveryAttempt {
+  id                String                     @id
+  deliveryId        String
+  attemptNumber     Int
+  status            PushDeliveryAttempt_status
+  providerMessageId String?                    @db.VarChar(255)
+  responseCode      Int?
+  errorCode         String?
+  errorMessage      String?                    @db.Text
+  responsePayload   Json?
+  startedAt         DateTime                   @default(now())
+  completedAt       DateTime?
+  PushDelivery      PushDelivery               @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@unique([deliveryId, attemptNumber])
+  @@index([startedAt])
+  @@index([status])
+}
+
+model PushEndpoint {
+  id                  String                @id
+  installationId      String
+  provider            PushEndpoint_provider
+  endpoint            String?               @db.Text
+  token               String?               @db.Text
+  p256dh              String?               @db.Text
+  auth                String?               @db.Text
+  credentialHash      String                @db.VarChar(64)
+  status              PushEndpoint_status   @default(ACTIVE)
+  expiresAt           DateTime?
+  lastRegisteredAt    DateTime              @default(now())
+  lastUsedAt          DateTime?
+  lastSuccessAt       DateTime?
+  lastFailureAt       DateTime?
+  consecutiveFailures Int                   @default(0)
+  disabledAt          DateTime?
+  disableReason       String?               @db.VarChar(255)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime
+  PushDelivery        PushDelivery[]
+  PushInstallation    PushInstallation      @relation(fields: [installationId], references: [id], onDelete: Cascade)
+
+  @@unique([installationId, provider])
+  @@index([credentialHash])
+  @@index([expiresAt])
+  @@index([provider, status])
+  @@index([status])
+}
+
+model PushInstallation {
+  id                                                        String                            @id
+  installationKey                                           String                            @db.VarChar(64)
+  identityId                                                String?
+  platform                                                  PushInstallation_platform
+  appType                                                   PushInstallation_appType
+  environment                                               PushInstallation_environment      @default(PRODUCTION)
+  permissionStatus                                          PushInstallation_permissionStatus @default(UNKNOWN)
+  permissionUpdatedAt                                       DateTime?
+  notificationsEnabled                                      Boolean                           @default(true)
+  deviceId                                                  String?
+  deviceLabel                                               String?
+  deviceModel                                               String?
+  osName                                                    String?                           @db.VarChar(100)
+  osVersion                                                 String?                           @db.VarChar(100)
+  browserName                                               String?                           @db.VarChar(100)
+  browserVersion                                            String?                           @db.VarChar(100)
+  appVersion                                                String?                           @db.VarChar(50)
+  buildNumber                                               String?                           @db.VarChar(50)
+  locale                                                    String?                           @db.VarChar(20)
+  timezone                                                  String?                           @db.VarChar(100)
+  userAgent                                                 String?                           @db.Text
+  linkedAt                                                  DateTime?
+  loggedOutAt                                               DateTime?
+  lastSeenAt                                                DateTime                          @default(now())
+  isDeleted                                                 Boolean                           @default(false)
+  deletedAt                                                 DateTime?
+  createdAt                                                 DateTime                          @default(now())
+  updatedAt                                                 DateTime
+  adminDisabledAt                                           DateTime?
+  adminDisabledById                                         String?
+  adminDisabledReason                                       String?                           @db.VarChar(500)
+  reactivatedAt                                             DateTime?
+  reactivatedById                                           String?
+  PushEndpoint                                              PushEndpoint[]
+  SuperAdmin_PushInstallation_adminDisabledByIdToSuperAdmin SuperAdmin?                       @relation("PushInstallation_adminDisabledByIdToSuperAdmin", fields: [adminDisabledById], references: [id])
+  NotificationIdentity                                      NotificationIdentity?             @relation(fields: [identityId], references: [id])
+  SuperAdmin_PushInstallation_reactivatedByIdToSuperAdmin   SuperAdmin?                       @relation("PushInstallation_reactivatedByIdToSuperAdmin", fields: [reactivatedById], references: [id])
+
+  @@unique([installationKey, appType, environment])
+  @@index([adminDisabledAt])
+  @@index([adminDisabledById])
+  @@index([identityId])
+  @@index([isDeleted])
+  @@index([lastSeenAt])
+  @@index([platform, appType])
+  @@index([reactivatedById])
 }
 
 enum PreferredLanguage {
@@ -1798,12 +2070,6 @@ enum PropertyRefundPolicy_policyType {
   TIME_BASED
 }
 
-enum PushSubscription_userType {
-  CUSTOMER
-  ADMIN
-  SUPER_ADMIN
-}
-
 enum SuperAdminSetupToken_type {
   ACCOUNT_SETUP
 }
@@ -1832,4 +2098,178 @@ enum CommissionInvoice_status {
   DRAFT
   ISSUED
   CANCELLED
+}
+
+enum AppVersion_platform {
+  ANDROID
+  IOS
+}
+
+enum Notification_userType {
+  CUSTOMER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum NotificationIdentity_userType {
+  CUSTOMER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum NotificationPreference_type {
+  BOOKING_RECEIVED
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  REFUND_CREATED
+  REFUND_PROCESSING
+  REFUND_SUCCESS
+  SETTLEMENT_REQUESTED
+  SETTLEMENT_COMPLETED
+  PROPERTY_APPROVED
+  PROPERTY_REJECTED
+  SYSTEM
+  CUSTOM
+}
+
+enum PushEndpoint_provider {
+  WEB_PUSH
+  FCM
+  APNS
+}
+
+enum NotificationRecipient_readStatus {
+  UNREAD
+  READ
+  DISMISSED
+  ARCHIVED
+}
+
+enum NotificationTemplate_type {
+  BOOKING_RECEIVED
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  REFUND_CREATED
+  REFUND_PROCESSING
+  REFUND_SUCCESS
+  SETTLEMENT_REQUESTED
+  SETTLEMENT_COMPLETED
+  PROPERTY_APPROVED
+  PROPERTY_REJECTED
+  SYSTEM
+  CUSTOM
+}
+
+enum PushDeliveryAttempt_status {
+  SUCCESS
+  FAILED
+}
+
+enum PushInstallation_platform {
+  WEB
+  ANDROID
+  IOS
+}
+
+enum PushDelivery_status {
+  PENDING
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  RETRYING
+  FAILED
+  SKIPPED
+}
+
+enum PushInstallation_appType {
+  CUSTOMER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum Notification_type {
+  BOOKING_RECEIVED
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  REFUND_CREATED
+  REFUND_PROCESSING
+  REFUND_SUCCESS
+  SETTLEMENT_REQUESTED
+  SETTLEMENT_COMPLETED
+  PROPERTY_APPROVED
+  PROPERTY_REJECTED
+  SYSTEM
+  CUSTOM
+}
+
+enum PushInstallation_environment {
+  DEVELOPMENT
+  STAGING
+  PRODUCTION
+}
+
+enum Notification_status {
+  UNREAD
+  READ
+}
+
+enum PushInstallation_permissionStatus {
+  UNKNOWN
+  PROMPT
+  GRANTED
+  DENIED
+}
+
+enum PushEndpoint_status {
+  ACTIVE
+  DISABLED
+  INVALID
+  EXPIRED
+}
+
+enum NotificationTemplate_defaultPriority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum Notification_audienceType {
+  USER
+  USER_TYPE
+  SEGMENT
+  TOPIC
+  BROADCAST
+  ALL_INSTALLED_USERS
+}
+
+enum Notification_createdByType {
+  CUSTOMER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum Notification_dispatchStatus {
+  DRAFT
+  SCHEDULED
+  QUEUED
+  PROCESSING
+  COMPLETED
+  PARTIALLY_FAILED
+  FAILED
+  CANCELLED
+}
+
+enum Notification_priority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
 }
