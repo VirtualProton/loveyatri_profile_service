@@ -353,6 +353,8 @@ model Customer {
   customerCode              String?                     @unique
   phone                     String                      @unique
   countryCode               String                      @default("+91")
+  deletedAt                 DateTime?
+  isDeleted                 Boolean                     @default(false)
   Booking                   Booking[]
   BookingCreditNote         BookingCreditNote[]
   BookingInvoice            BookingInvoice[]
@@ -362,20 +364,28 @@ model Customer {
   CustomerProfile           CustomerProfile?
   CustomerWishlist          CustomerWishlist[]
   reviews                   PropertyReview[]
+
+  @@index([isActive, isDeleted])
+  @@index([isDeleted])
 }
 
 model CustomerProfile {
-  id                 String   @id @default(uuid())
-  customerId         String   @unique
-  photoUrl           String?
-  address            String?  @db.Text
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                 String    @id @default(uuid())
+  customerId         String    @unique
+  photoUrl           String
+  address            String?   @db.Text
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
   city               String?
   state              String?
-  email              String   @unique
-  emailVerifyVersion Int      @default(0)
-  Customer           Customer @relation(fields: [customerId], references: [id])
+  email              String
+  emailVerifyVersion Int       @default(0)
+  deletedAt          DateTime?
+  isDeleted          Boolean   @default(false)
+  Customer           Customer  @relation(fields: [customerId], references: [id])
+
+  @@unique([email, isDeleted])
+  @@index([isDeleted])
 }
 
 model Coupon {

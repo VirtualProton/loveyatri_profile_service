@@ -76,8 +76,11 @@ export const CustomerProfileService = async (
         throw new AppError(409, "Profile already completed.");
       }
 
-      const emailExistsInProfile = await tx.customerProfile.findUnique({
-        where: { email: normalizedEmail },
+      const emailExistsInProfile = await tx.customerProfile.findFirst({
+        where: {
+          email: normalizedEmail,
+          isDeleted: false,
+        },
         select: { id: true },
       });
 

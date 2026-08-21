@@ -249,6 +249,7 @@ export const CustomerProfileUpdateService = async (data: {
         const emailExistsInProfile = await tx.customerProfile.findFirst({
           where: {
             email: normalizedEmail,
+            isDeleted: false,
             NOT: { customerId },
           },
           select: { id: true },
@@ -454,6 +455,7 @@ export const VerifyCustomerEmailChangeService = async (token: string) => {
       const emailExistsInProfile = await tx.customerProfile.findFirst({
         where: {
           email: newEmail,
+          isDeleted: false,
           NOT: { customerId },
         },
         select: { id: true },
